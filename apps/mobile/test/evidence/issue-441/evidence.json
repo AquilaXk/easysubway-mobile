@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "issue": 441,
+  "capturedAt": "2026-10-04",
+  "platform": "Android emulator easysubway_ps16k_api36 (Android 16 API 36, google_apis 이미지, Play Store 비활성), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "일반 이동 프로필(STANDARD) 사용자는 서버가 UNDETERMINED·UNOBSERVED를 줘도 계단 상태 안내와 계단 없는 경로 표시를 보지 않는다. 탭 라벨은 빠른 경로·환승 적은 경로다",
+    "휠체어(STEP_FREE) 사용자가 계단 없는 경로를 요청하고 서버가 facilityStatus=UNOBSERVED를 주면 '엘리베이터 고장 정보는 반영하지 못했어요' 안내가 경로 후보 위에 보이고, 탭에 '계단 없는 경로'가 붙는다",
+    "짐이 있는 사용자(NO_STAIRS + REQUIRE_STEP_FREE)가 422 ACCESSIBILITY_CONSTRAINT_UNSATISFIED를 받으면 '계단 없이 갈 수 있는 경로를 찾지 못했어요.'와 '일반 경로 보기' 버튼이 보인다. 서버 문구의 '검증' 같은 내부 용어는 보이지 않는다",
+    "'일반 경로 보기'를 누르면 같은 출발·도착으로 STEP_FREE + NONE 검색을 하고, UNDETERMINED면 '계단 정보가 없는 환승이 있어요', NOT_FOUND면 '계단 없이 갈 수 있는 경로가 없어요'를 경로 후보 위에 보인다",
+    "각 안내는 스크린리더에서 제목과 본문이 한 덩어리 라벨로 읽힌다(accessibility-tree.txt)"
+  ],
+  "files": [
+    {
+      "path": "standard-undetermined.png",
+      "sha256": "3f321ad5e9d6158f78c48a13a3c3177196b8adf461809e8387b806c94ebc326c",
+      "description": "일반 이동 프로필: UNDETERMINED·UNOBSERVED 응답에도 계단 안내·계단 없는 경로 표시 없음, 탭 라벨 빠른 경로·환승 적은 경로"
+    },
+    {
+      "path": "wheelchair-included-unobserved.png",
+      "sha256": "0bc83cbc28a9d3db24dda000f631769d12a0f877826572eb9d9a52738bd2d3f4",
+      "description": "휠체어 계단 없는 경로 요청: 엘리베이터 고장 정보 미반영 안내와 계단 없는 경로 탭 라벨"
+    },
+    {
+      "path": "luggage-422.png",
+      "sha256": "059155aad3c6910d56d4be33757463b577cb9986a093f6c371e593079d3fc54c",
+      "description": "짐 있는 사용자 계단 없는 경로 요청 422: 사실 문구와 일반 경로 보기·출발·도착역 다시 선택 버튼"
+    },
+    {
+      "path": "luggage-422-standard-routes.png",
+      "sha256": "9f85a6b6ec0ff018ef39898bbfccd35fc2cb36e1d46e6ea883a2f150e81f4be8",
+      "description": "일반 경로 보기 후(UNDETERMINED): 계단 정보가 없는 환승이 있어요 안내"
+    },
+    {
+      "path": "luggage-422-standard-routes-not-found.png",
+      "sha256": "172401f5849ac4e7dfa5ee9675740966d0874b09e8e6bfdad863ff46303e103e",
+      "description": "일반 경로 보기 후(NOT_FOUND): 계단 없이 갈 수 있는 경로가 없어요 안내"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "698c360dc14efba98e2a99f2b812227ed5e61494d2178cdd6effa9bbd9d13eb6",
+      "description": "각 화면의 uiautomator dump에서 계단·엘리베이터·경로·환승 관련 text/content-desc 발췌"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 JourneySearchScreen에 실제 JourneyApiRepository를 넣고, 전송 계층(ApiClient.postJson)만 바꿨다. 검색 성공은 backend main(83e6b51e) wire fixture(test/fixtures/contracts/api/journey_v3/search-success.backend-main.json)에 요청의 requestId·정책을 복사하고 stairFreeAlternative 값만 장면마다 바꿨다. 계단 없는 경로 요청 응답은 계약대로 모든 여정을 stairFree=true로 맞췄다. 422는 계약 오류 본문(JOURNEY_ERROR_V1, ACCESSIBILITY_CONSTRAINT_UNSATISFIED)이다. flutter test -d emulator-5554로 실행하고 adb exec-out screencap, adb shell uiautomator dump로 수집했다. lib/ 테스트 전용 hook 없음. fixture의 역 이름(서울역·잠실·시청 등)은 화면 확인용이며 실제 경로가 아니다.",
+  "notes": "실제 계정·자격 증명은 입력하지 않았다. 운영 API 실검색은 debug 빌드에서 Play Integrity 세션 발급이 막혀(#438 evidence와 같은 사유) fixture 응답으로 찍었다. TalkBack 실기 낭독은 하지 않았고 접근성 트리로 대체했다."
+}

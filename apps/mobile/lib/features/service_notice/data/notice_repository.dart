@@ -1,0 +1,276 @@
+import '../../../core/network/api_client.dart';
+import '../../../mobile_error_reporter.dart';
+import '../domain/service_notice.dart';
+
+enum NoticeResultState {
+  freshData,
+  freshEmpty,
+  staleData,
+  unavailable,
+  invalidData,
+}
+
+/// 활성 공지 조회 결과. [stale]이면 오프라인/오류로 마지막 수신본을 준 것이고,
+/// [asOf]는 그 데이터의 수신 시각("N시간 전 기준" 라벨용)이다.
+class ActiveNoticesResult {
+  const ActiveNoticesResult({
+    required this.notices,
+    required this.stale,
+    this.asOf,
+  }) : assert(!stale || asOf != null),
+       _explicitState = null;
+
+  const ActiveNoticesResult._({
+    required NoticeResultState state,
+    required this.notices,
+    required this.stale,
+    this.asOf,
+  }) : _explicitState = state;
+
+  factory ActiveNoticesResult.fresh(
+    List<ServiceNotice> notices, {
+    DateTime? asOf,
+  }) => ActiveNoticesResult._(
+    state: notices.isEmpty
+        ? NoticeResultState.freshEmpty
+        : NoticeResultState.freshData,
+    notices: notices,
+    stale: false,
+    asOf: asOf,
+  );
+
+  factory ActiveNoticesResult.stale(
+    List<ServiceNotice> notices, {
+    required DateTime asOf,
+  }) => ActiveNoticesResult._(
+    state: NoticeResultState.staleData,
+    notices: notices,
+    stale: true,
+    asOf: asOf,
+  );
+
+  const ActiveNoticesResult.unavailable()
+    : _explicitState = NoticeResultState.unavailable,
+      notices = const [],
+      stale = false,
+      asOf = null;
+
+  const ActiveNoticesResult.invalidData()
+    : _explicitState = NoticeResultState.invalidData,
+      notices = const [],
+      stale = false,
+      asOf = null;
+
+  final NoticeResultState? _explicitState;
+  final List<ServiceNotice> notices;
+  final bool stale;
+  final DateTime? asOf;
+
+  NoticeResultState get state =>
+      _explicitState ??
+      (stale
+          ? NoticeResultState.staleData
+          : notices.isEmpty
+          ? NoticeResultState.freshEmpty
+          : NoticeResultState.freshData);
+
+  List<ServiceNotice> get disruptions =>
+      notices.where((notice) => notice.isDisruption).toList();
+}
+
+/// 공개 공지 API의 좁은 포트. If-None-Match 조건부 GET만 노출한다.
+abstract class NoticeApiClient {
+  Future<ApiResponse> getActiveNotices({String? ifNoneMatch});
+}
+
+/// [ApiClient]로 `GET /api/notices/active`를 호출하는 구현.
+class HttpNoticeApiClient implements NoticeApiClient {
+  HttpNoticeApiClient(this._apiClient);
+
+  final ApiClient _apiClient;
+
+  @override
+  Future<ApiResponse> getActiveNotices({String? ifNoneMatch}) {
+    return _apiClient.getJson(
+      '/api/notices/active',
+      headers: ifNoneMatch == null ? const {} : {'If-None-Match': ifNoneMatch},
+    );
+  }
+}
+
+/// 공지 캐시 항목(etag·공지 목록·수신 시각).
+class NoticeCacheEntry {
+  const NoticeCacheEntry({
+    required this.etag,
+    required this.notices,
+    required this.fetchedAt,
+  });
+
+  final String? etag;
+  final List<ServiceNotice> notices;
+  final DateTime fetchedAt;
+}
+
+/// 공지 캐시 저장소(앱 재시작 후 오프라인 staleness용).
+abstract class NoticeCacheStore {
+  Future<NoticeCacheEntry?> load();
+
+  Future<void> save(NoticeCacheEntry entry);
+}
+
+/// 활성 공지를 조회한다.
+abstract class NoticeRepository {
+  Future<ActiveNoticesResult> activeNotices();
+}
+
+/// ETag 조건부 GET + 캐시 + 오프라인 강등을 수행하는 구현.
+class ApiNoticeRepository implements NoticeRepository {
+  ApiNoticeRepository({
+    required this.apiClient,
+    required this.cacheStore,
+    this.now = DateTime.now,
+    this.maxStaleAge = const Duration(hours: 24),
+  });
+
+  final NoticeApiClient apiClient;
+  final NoticeCacheStore cacheStore;
+  final DateTime Function() now;
+  final Duration maxStaleAge;
+  String? _validatedEtag;
+
+  @override
+  Future<ActiveNoticesResult> activeNotices() async {
+    NoticeCacheEntry? cached;
+    try {
+      cached = await cacheStore.load();
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '운행 공지 캐시를 읽는 중 예외가 발생했습니다.',
+      );
+    }
+    try {
+      final response = await apiClient.getActiveNotices(
+        ifNoneMatch: _validatedEtag,
+      );
+
+      if (response.isNotModified && cached != null) {
+        if (_validatedEtag == null || _validatedEtag != cached.etag) {
+          return _staleOrUnavailable(cached);
+        }
+        final fetchedAt = now();
+        final notices = _activeAt(cached.notices, fetchedAt);
+        if (cached.notices.isNotEmpty && notices.isEmpty) {
+          return const ActiveNoticesResult.invalidData();
+        }
+        await _saveCache(
+          NoticeCacheEntry(
+            etag: cached.etag,
+            notices: cached.notices,
+            fetchedAt: fetchedAt,
+          ),
+        );
+        return ActiveNoticesResult.fresh(notices, asOf: fetchedAt);
+      }
+
+      if (response.isOk && response.jsonBody is Map<String, Object?>) {
+        final body = response.jsonBody as Map<String, Object?>;
+        if (body['success'] != true) {
+          return const ActiveNoticesResult.invalidData();
+        }
+        final data = body['data'];
+        final fetchedAt = now();
+        final sourceNotices = _strictlyParsed(data);
+        if (sourceNotices == null) {
+          return const ActiveNoticesResult.invalidData();
+        }
+        final notices = _activeAt(sourceNotices, fetchedAt);
+        if (sourceNotices.isNotEmpty && notices.isEmpty) {
+          return const ActiveNoticesResult.invalidData();
+        }
+        final saved = await _saveCache(
+          NoticeCacheEntry(
+            etag: response.etag,
+            notices: sourceNotices,
+            fetchedAt: fetchedAt,
+          ),
+        );
+        if (saved) {
+          _validatedEtag = response.etag;
+        }
+        return ActiveNoticesResult.fresh(notices, asOf: fetchedAt);
+      }
+
+      if (response.isOk) {
+        return const ActiveNoticesResult.invalidData();
+      }
+    } on ApiException {
+      // 오프라인/서버 오류 → 아래에서 캐시로 강등.
+    }
+
+    if (cached != null) {
+      return _staleOrUnavailable(cached);
+    }
+    return const ActiveNoticesResult.unavailable();
+  }
+
+  ActiveNoticesResult _staleOrUnavailable(NoticeCacheEntry cached) {
+    final current = now();
+    if (current.difference(cached.fetchedAt) > maxStaleAge) {
+      return const ActiveNoticesResult.unavailable();
+    }
+    return ActiveNoticesResult.stale(
+      _activeAt(cached.notices, current),
+      asOf: cached.fetchedAt,
+    );
+  }
+
+  Future<bool> _saveCache(NoticeCacheEntry entry) async {
+    try {
+      await cacheStore.save(entry);
+      return true;
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '운행 공지 캐시를 저장하는 중 예외가 발생했습니다.',
+      );
+      return false;
+    }
+  }
+
+  List<ServiceNotice> _activeAt(
+    Iterable<ServiceNotice> notices,
+    DateTime instant,
+  ) {
+    return notices
+        .where((notice) {
+          if (notice.publishedAt.isAfter(instant)) {
+            return false;
+          }
+          final expiresAt = notice.expiresAt;
+          return expiresAt == null || expiresAt.isAfter(instant);
+        })
+        .toList(growable: false);
+  }
+
+  List<ServiceNotice>? _strictlyParsed(Object? data) {
+    if (data is! List) {
+      return null;
+    }
+    final notices = <ServiceNotice>[];
+    for (final entry in data) {
+      if (entry is! Map<String, Object?>) {
+        return null;
+      }
+      final notice = ServiceNotice.fromJson(entry);
+      if (notice == null ||
+          (entry['expiresAt'] != null && notice.expiresAt == null)) {
+        return null;
+      }
+      notices.add(notice);
+    }
+    return List.unmodifiable(notices);
+  }
+}

@@ -1,0 +1,97 @@
+## production-attempt
+- 출발
+- 강남역
+- 도착
+- 양재역
+- 출발 기준
+- 지금 출발
+- 출발 시간
+- 특정 시간대 출발 대안 보기
+- 교통약자 안심 막차 찾기(Last Connection)
+- 걷는 속도
+- 느린 걸음
+- 표준 걸음
+- 빠른 걸음
+- 경로 찾기
+- 경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.
+- 다시 시도
+
+앱 로그(harness 기록):
+- EVIDENCE_OP attest failed PlatformException
+
+## before-main
+- 출발
+- 강남역
+- 도착
+- 양재역
+- 출발 기준
+- 지금 출발
+- 출발 시간
+- 특정 시간대 출발 대안 보기
+- 교통약자 안심 막차 찾기(Last Connection)
+- 걷는 속도
+- 느린 걸음
+- 표준 걸음
+- 빠른 걸음
+- 경로 찾기
+- 경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.
+- 다시 시도
+
+앱 로그(harness 기록):
+- EVIDENCE_OP issueSession ok
+- EVIDENCE_OP searchJourneys failed JourneyProtocolFailure cause=FormatException: unexpected JSON keys 
+
+## after-main
+- 출발
+- 강남역
+- 도착
+- 양재역
+- 출발 기준
+- 지금 출발
+- 출발 시간
+- 특정 시간대 출발 대안 보기
+- 교통약자 안심 막차 찾기(Last Connection)
+- 걷는 속도
+- 느린 걸음
+- 표준 걸음
+- 빠른 걸음
+- 경로 찾기
+- 경로 후보
+- 2개
+- 최단시간, 무단차, 5분, 환승 1회, 09:06 도착
+- 최소환승, 5분, 환승 없음, 09:07 도착
+- 5분 소요, 09:01 출발, 09:06 도착, 환승 1회, 도보 75m
+- ♿ 무단차 경로
+- 구간: 1호선 4분, 환승 도보 1분, 2호선 1분
+
+앱 로그(harness 기록):
+- EVIDENCE_OP issueSession ok
+- EVIDENCE_OP searchJourneys ok
+
+## after-pr471
+- 출발
+- 강남역
+- 도착
+- 양재역
+- 출발 기준
+- 지금 출발
+- 출발 시간
+- 특정 시간대 출발 대안 보기
+- 교통약자 안심 막차 찾기(Last Connection)
+- 걷는 속도
+- 느린 걸음
+- 표준 걸음
+- 빠른 걸음
+- 경로 찾기
+- 경로 후보
+- 2개
+- 최단시간, 계단회피, 5분, 환승 1회, 09:06 도착
+- 최소환승, 5분, 환승 없음, 09:07 도착
+- 5분 소요, 09:01 출발, 09:06 도착, 환승 1회, 도보 75m
+- ♿ 무단차 경로
+- 구간: 1호선 4분, 환승 도보 1분, 2호선 1분
+
+앱 로그(harness 기록):
+- EVIDENCE_OP issueSession ok
+- EVIDENCE_OP searchJourneys ok
+

@@ -1,0 +1,504 @@
+import 'dart:io';
+
+import 'package:clock/clock.dart';
+import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
+import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
+import 'package:easysubway_mobile/features/network_map/application/network_map_nearby_panel_state.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/network_map_nearby_panel_content.dart';
+import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
+import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+Widget _host(Widget child) => MaterialApp(
+  home: Scaffold(body: SizedBox(width: 420, height: 720, child: child)),
+);
+
+const _line = StationSearchLine(
+  id: 'line-1',
+  name: '수도권 1호선',
+  color: '#0052A4',
+  stationCode: '101',
+);
+
+const _focusedStation = StationSearchResult(
+  id: 'station-center',
+  nameKo: '가운데',
+  nameEn: 'Center',
+  region: '수도권',
+  dataQualityLevel: 'VERIFIED',
+  lastVerifiedAt: '2026-08-13T00:00:00Z',
+  lines: [_line],
+);
+
+NetworkMapStation _station(String id, String name, int x, int sequence) {
+  return NetworkMapStation(
+    id: id,
+    nameKo: name,
+    nameEn: name,
+    region: '수도권',
+    lineId: 'line-1',
+    stationCode: '$sequence',
+    sequence: sequence,
+    position: NetworkMapPosition(
+      x: x,
+      y: 200,
+      labelDx: 0,
+      labelDy: 0,
+      upPath: '',
+      downPath: '',
+      sourceId: 'fixture',
+    ),
+  );
+}
+
+final _mapData = NetworkMapData(
+  regions: [NetworkMapRegion(name: '수도권')],
+  selectedRegion: '수도권',
+  lines: [
+    NetworkMapLine(
+      id: 'line-1',
+      name: '수도권 1호선',
+      color: '#0052A4',
+      region: '수도권',
+    ),
+  ],
+  stations: [
+    _station('station-left', '이전', 100, 1),
+    _station('station-center', '가운데', 200, 2),
+    _station('station-right', '다음', 300, 3),
+  ],
+  edges: [
+    NetworkMapEdge(
+      id: 'left-center',
+      lineId: 'line-1',
+      fromStationId: 'station-left:line-1',
+      toStationId: 'station-center:line-1',
+      accessibilityStatus: 'AVAILABLE',
+      reliabilityScore: 100,
+    ),
+    NetworkMapEdge(
+      id: 'center-right',
+      lineId: 'line-1',
+      fromStationId: 'station-center:line-1',
+      toStationId: 'station-right:line-1',
+      accessibilityStatus: 'AVAILABLE',
+      reliabilityScore: 100,
+    ),
+  ],
+  positionSources: [
+    NetworkMapPositionSource(
+      id: 'fixture',
+      name: '주변역 content test fixture',
+      licenseStatus: 'fixture-only',
+    ),
+  ],
+);
+
+final class _MapRepository implements NetworkMapRepository {
+  const _MapRepository();
+
+  @override
+  Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
+    return _mapData;
+  }
+}
+
+void main() {
+  setUp(() {
+    primeNetworkMapOwnerLabelsCacheForTest(const {});
+  });
+  tearDown(() {
+    resetNetworkMapOwnerLabelsCacheForTest();
+  });
+
+  testWidgets('idle·loading은 success builder 없이 132px indicator를 보존한다', (
+    tester,
+  ) async {
+    for (final status in [
+      NetworkMapNearbyPanelStatus.idle,
+      NetworkMapNearbyPanelStatus.loading,
+    ]) {
+      var successBuildCount = 0;
+      await tester.pumpWidget(
+        _host(
+          NetworkMapNearbyPanelContent(
+            status: status,
+            successBuilder: (context) {
+              successBuildCount += 1;
+              return (
+                stationBar: const SizedBox(key: Key('stationBar')),
+                controlRow: const SizedBox(key: Key('controlRow')),
+                dataPanel: const SizedBox(key: Key('dataPanel')),
+              );
+            },
+          ),
+        ),
+      );
+
+      expect(successBuildCount, 0);
+      final content = find.byType(NetworkMapNearbyPanelContent);
+      final loadingFinder = find.descendant(
+        of: content,
+        matching: find.byWidgetPredicate(
+          (widget) => widget is SizedBox && widget.height == 132,
+        ),
+      );
+      expect(loadingFinder, findsOneWidget);
+      final loading = tester.widget<SizedBox>(loadingFinder);
+      expect(loading.height, 132);
+      expect(
+        find.descendant(
+          of: content,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+    }
+  });
+
+  testWidgets('success는 노선 바, 토글 줄, 방면 카드를 위에서부터 한 번 조합한다', (tester) async {
+    var successBuildCount = 0;
+    await tester.pumpWidget(
+      _host(
+        NetworkMapNearbyPanelContent(
+          status: NetworkMapNearbyPanelStatus.success,
+          successBuilder: (context) {
+            successBuildCount += 1;
+            return (
+              stationBar: const SizedBox(key: Key('stationBar'), height: 48),
+              controlRow: const SizedBox(key: Key('controlRow'), height: 48),
+              dataPanel: const SizedBox(key: Key('dataPanel'), height: 72),
+            );
+          },
+        ),
+      ),
+    );
+
+    expect(successBuildCount, 1);
+    final barBottom = tester.getBottomLeft(find.byKey(const Key('stationBar')));
+    final rowRect = tester.getRect(find.byKey(const Key('controlRow')));
+    final panelTop = tester.getTopLeft(find.byKey(const Key('dataPanel')));
+    expect(rowRect.top, greaterThan(barBottom.dy));
+    expect(panelTop.dy, greaterThan(rowRect.bottom));
+    final padding = tester.widget<Padding>(
+      find.ancestor(
+        of: find.byKey(const Key('dataPanel')),
+        matching: find.byType(Padding),
+      ),
+    );
+    expect(padding.padding, const EdgeInsets.fromLTRB(24, 0, 24, 12));
+  });
+
+  test('root는 public content owner를 쓰고 private content class가 없다', () {
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
+    expect(
+      root,
+      contains(
+        "import '../features/network_map/presentation/network_map_nearby_panel_content.dart';",
+      ),
+    );
+    expect(root, contains('NetworkMapNearbyPanelContent('));
+    expect(root, isNot(contains('class _NetworkMapNearbyPanelBody')));
+    expect(root, isNot(contains('class _NetworkMapNearbySuccessList')));
+  });
+
+  testWidgets('root success content는 좌우 인접역 tap callback을 연결한다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final routeDraftController = RouteDraftController();
+    addTearDown(routeDraftController.dispose);
+    StationSearchResult? focusStationRequest;
+    late StateSetter updateHost;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            updateHost = setState;
+            return NetworkMapScreen(
+              repository: const _MapRepository(),
+              routeDraftController: routeDraftController,
+              onOpenStationSearch: (_, _) {},
+              focusStationRequest: focusStationRequest,
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    updateHost(() => focusStationRequest = _focusedStation);
+    await tester.pumpAndSettle();
+
+    final left = find.byKey(const Key('nearbyStationLineBarLeftName'));
+    final right = find.byKey(const Key('nearbyStationLineBarRightName'));
+    expect(left, findsOneWidget);
+    expect(right, findsOneWidget);
+
+    await tester.tap(left);
+    await tester.pump();
+    await tester.tap(right);
+    await tester.pump();
+  });
+
+  testWidgets('NetworkMapScreen 주변역 패널은 실시간/시간표 토글을 처리한다', (tester) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final routeDraftController = RouteDraftController();
+    addTearDown(routeDraftController.dispose);
+    StationSearchResult? focusStationRequest;
+    late StateSetter updateHost;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            updateHost = setState;
+            return NetworkMapScreen(
+              repository: const _MapRepository(),
+              routeDraftController: routeDraftController,
+              onOpenStationSearch: (_, _) {},
+              focusStationRequest: focusStationRequest,
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 패널 열기
+    updateHost(() => focusStationRequest = _focusedStation);
+    await tester.pumpAndSettle();
+
+    // 실시간 / 시간표 토글 버튼 탭
+    final toggle = find.byKey(const Key('networkMapNearbyDataSourceToggle'));
+    if (toggle.evaluate().isNotEmpty) {
+      await tester.tap(find.descendant(of: toggle, matching: find.text('시간표')));
+      await tester.pumpAndSettle();
+
+      // 다시 토글
+      await tester.tap(find.descendant(of: toggle, matching: find.text('실시간')));
+      await tester.pumpAndSettle();
+    }
+  });
+
+  testWidgets(
+    'NetworkMapScreen 주변역 시간표 조회 시 ServerConnectionException이 발생해도 크래시 없이 초기화된다',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final routeDraftController = RouteDraftController();
+      addTearDown(routeDraftController.dispose);
+      StationSearchResult? focusStationRequest;
+      late StateSetter updateHost;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              updateHost = setState;
+              return NetworkMapScreen(
+                repository: const _MapRepository(),
+                timetableRepository: const _FailingTimetableRepository(),
+                routeDraftController: routeDraftController,
+                onOpenStationSearch: (_, _) {},
+                focusStationRequest: focusStationRequest,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 패널 열기
+      updateHost(() => focusStationRequest = _focusedStation);
+      await tester.pumpAndSettle();
+
+      // 시간표 탭하여 _loadNearbyTimetable 호출 유도
+      final toggle = find.byKey(const Key('networkMapNearbyDataSourceToggle'));
+      if (toggle.evaluate().isNotEmpty) {
+        await tester.tap(find.text('시간표'));
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
+  testWidgets('NetworkMapScreen 주변역 시간표 조회는 월요일 00:15 KST에 전날(일요일) 운행일로 조회한다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final routeDraftController = RouteDraftController();
+    addTearDown(routeDraftController.dispose);
+    final recordingRepo = _RecordingTimetableRepository();
+    StationSearchResult? focusStationRequest;
+    late StateSetter updateHost;
+
+    await withClock(Clock.fixed(DateTime.utc(2026, 7, 5, 15, 15)), () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              updateHost = setState;
+              return NetworkMapScreen(
+                repository: const _MapRepository(),
+                timetableRepository: recordingRepo,
+                routeDraftController: routeDraftController,
+                onOpenStationSearch: (_, _) {},
+                focusStationRequest: focusStationRequest,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      updateHost(() => focusStationRequest = _focusedStation);
+      await tester.pumpAndSettle();
+    });
+
+    expect(recordingRepo.requestedDates, [DateTime.utc(2026, 7, 5)]);
+  });
+
+  testWidgets(
+    '번들 데이터팩 로컬 repository만 주입된 노선도 하단 시트는 역 캡슐 탭 시 출구·승강기·시설 섹션을 모두 표시한다',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final database = CatalogDatabase.memory();
+      addTearDown(database.close);
+      await database.seedBaselineIfEmpty();
+      final catalogRepository = DriftStationRepository(database: database);
+      final sangnoksu = (await catalogRepository.searchStations('상록수')).single;
+
+      final routeDraftController = RouteDraftController();
+      addTearDown(routeDraftController.dispose);
+      StationSearchResult? focusStationRequest;
+      late StateSetter updateHost;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              updateHost = setState;
+              return NetworkMapScreen(
+                repository: catalogRepository,
+                routeDraftController: routeDraftController,
+                onOpenStationSearch: (_, _) {},
+                focusStationRequest: focusStationRequest,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      updateHost(() => focusStationRequest = sangnoksu);
+      await tester.pumpAndSettle();
+
+      final centerCapsule = find.byKey(
+        const Key('nearbyStationLineBarCapsule'),
+      );
+      expect(centerCapsule, findsOneWidget);
+      await tester.tap(centerCapsule);
+      await tester.pumpAndSettle();
+
+      expect(find.text('역정보'), findsOneWidget);
+      expect(find.text('교통약자 시설'), findsOneWidget);
+      expect(find.text('출구정보'), findsOneWidget);
+      expect(find.text('시설 상세 및 고장 신고'), findsOneWidget);
+      expect(find.text('역 안 이동'), findsOneWidget);
+    },
+  );
+}
+
+final class _RecordingTimetableRepository
+    implements StationTimetableRepository {
+  final requestedDates = <DateTime>[];
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) async => StationTimetable(
+    stationId: stationId,
+    lineId: lineId,
+    dayType: dayType,
+    directions: const [],
+  );
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) async {
+    requestedDates.add(date);
+    return StationTimetable(
+      stationId: stationId,
+      lineId: lineId,
+      dayType: StationTimetableDayType.sundayHoliday,
+      directions: const [],
+    );
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => loadStationTimetableForDate(
+    stationId: stationId,
+    lineId: lineId,
+    date: asOf,
+  );
+}
+
+final class _FailingTimetableRepository implements StationTimetableRepository {
+  const _FailingTimetableRepository();
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+}

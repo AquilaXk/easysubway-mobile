@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "issue": 451,
+  "capturedAt": "2026-10-06",
+  "platform": "Android emulator (Android 16 API 36, sdk gphone16k arm64), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "환승 노드(고속터미널) 아래에 '이동 방법 7단계' 토글이 접힌 상태로 보인다. 환승 · 도보 3분 노드 문구는 그대로다",
+    "토글을 펼치면 국토교통부 원문 7문장이 번호까지 그대로, 순서대로 보인다",
+    "접근성 트리는 환승 노드, 이동 방법 7단계 토글, 1)~7) 문장 순서로 읽힌다(accessibility-tree.txt)"
+  ],
+  "files": [
+    {
+      "path": "transfer-guide-collapsed.png",
+      "sha256": "64df06fb79ad381b93bc08c89508d6ebc1c02269669b8cf800675ca6517cd94a",
+      "description": "고속터미널 9호선에서 3호선 환승, 이동 방법 접힘"
+    },
+    {
+      "path": "transfer-guide-expanded.png",
+      "sha256": "aca22b443eca9f3e99ae95400ec84ba16fe6b04c9941c7069dca79672febfd18",
+      "description": "같은 환승, 이동 방법 펼침"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "da1cd20101c49df812dc76be30c45540d7f7bbf887a3fd8ffeddfa44ebf2c387",
+      "description": "펼친 상태 uiautomator dump 발췌"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 JourneySearchScreen에 fixture 여정과 fixture TransferGuideRepository를 넣고 flutter test -d emulator로 실행, adb exec-out screencap과 adb shell uiautomator dump로 수집했다. 에뮬레이터 안 sqlite 네이티브 라이브러리가 flutter test 모드에서 올라오지 않아 Drift 저장소 대신 같은 인터페이스의 fixture 저장소를 썼고, Drift 저장소는 호스트 단위 테스트로 검증한다. 문장은 data 레포 테스트의 고속터미널 9호선 사평 방면에서 3호선 잠원 방면 원문이다. 역·여정은 화면 확인용 fixture이고 실제 경로가 아니다.",
+  "notes": "실제 데이터팩에는 아직 이 표가 든 빌드가 없어 실제 팩 화면은 찍지 못했다. TalkBack 실기 낭독은 하지 않았고 접근성 트리로 대체했다."
+}

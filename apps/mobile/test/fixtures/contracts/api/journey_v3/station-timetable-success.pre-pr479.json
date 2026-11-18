@@ -1,0 +1,25 @@
+{
+  "contractVersion": "STATION_TIMETABLE_SEARCH_V3",
+  "stationId": "station-gangnam",
+  "lineId": "line-2",
+  "selector": {"kind": "SERVICE_DATE", "serviceDate": "2026-08-24"},
+  "resolvedDayType": "WEEKDAY",
+  "serviceTimezone": "Asia/Seoul",
+  "directionGroups": [
+    {
+      "directionName": "역삼 방면",
+      "departures": [
+        {"serviceDate": "2026-08-24", "secondsFromServiceDayStart": 32400, "departureAt": "2026-08-24T09:00:00+09:00", "servicePattern": "LOCAL", "serviceClass": "SUBWAY"}
+      ]
+    }
+  ],
+  "sourceIdentity": {
+    "timetableArtifactId": "timetable-artifact-1",
+    "timetableSnapshotSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "canonicalStationVersion": "stations-1",
+    "canonicalStationSetSha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "sourceLineageSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    "evidenceHash": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "freshUntil": "2026-08-25T00:00:00Z"
+  }
+}

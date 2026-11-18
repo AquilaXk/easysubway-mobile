@@ -1,0 +1,268 @@
+name: Mobile Native Integration
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-native-integration.yml"
+      - "apps/mobile/android/**"
+      - "apps/mobile/ios/**"
+      - "apps/mobile/integration_test/native_test.dart"
+      - "apps/mobile/integration_test/core_screen_a11y_smoke_test.dart"
+      - "apps/mobile/integration_test/native_smoke_test.dart"
+      - "apps/mobile/integration_test/system_text_scale.dart"
+      - "apps/mobile/test_driver/native_smoke_driver.dart"
+      - "apps/mobile/test/support/core_screen_sweep_*.dart"
+      - "apps/mobile/test/support/full_tap_target_guideline.dart"
+      - "apps/mobile/lib/accessible_design.dart"
+      - "apps/mobile/lib/search_field.dart"
+      - "apps/mobile/lib/app/**"
+      - "apps/mobile/lib/core/ui/**"
+      - "apps/mobile/lib/features/facility_report/**"
+      - "apps/mobile/lib/features/favorites/**"
+      - "apps/mobile/lib/features/network_map/**"
+      - "apps/mobile/lib/features/notifications/**"
+      - "apps/mobile/lib/features/service_notice/**"
+      - "apps/mobile/lib/features/settings/**"
+      - "apps/mobile/lib/features/stations/**"
+      - "tools/ci/android-native-drive.sh"
+      - "tools/ci/apply-flutter-patch.sh"
+      - "tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch"
+      - "tools/ci/ios-native-drive.sh"
+      - "tools/ci/native-drive-common.sh"
+      - "apps/mobile/lib/features/journey/**"
+      - "apps/mobile/lib/features/route_draft/**"
+      - "apps/mobile/lib/features/routes/**"
+      - "apps/mobile/lib/generated/journey_v3/**"
+      - "apps/mobile/pubspec.yaml"
+      - "apps/mobile/pubspec.lock"
+      - "tools/ci/mobile-native-integration-workflow.test.mjs"
+      - "tools/ci/fixtures/android-drive/**"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-native-integration.yml"
+      - "apps/mobile/android/**"
+      - "apps/mobile/ios/**"
+      - "apps/mobile/integration_test/native_test.dart"
+      - "apps/mobile/integration_test/core_screen_a11y_smoke_test.dart"
+      - "apps/mobile/integration_test/native_smoke_test.dart"
+      - "apps/mobile/integration_test/system_text_scale.dart"
+      - "apps/mobile/test_driver/native_smoke_driver.dart"
+      - "apps/mobile/test/support/core_screen_sweep_*.dart"
+      - "apps/mobile/test/support/full_tap_target_guideline.dart"
+      - "apps/mobile/lib/accessible_design.dart"
+      - "apps/mobile/lib/search_field.dart"
+      - "apps/mobile/lib/app/**"
+      - "apps/mobile/lib/core/ui/**"
+      - "apps/mobile/lib/features/facility_report/**"
+      - "apps/mobile/lib/features/favorites/**"
+      - "apps/mobile/lib/features/network_map/**"
+      - "apps/mobile/lib/features/notifications/**"
+      - "apps/mobile/lib/features/service_notice/**"
+      - "apps/mobile/lib/features/settings/**"
+      - "apps/mobile/lib/features/stations/**"
+      - "tools/ci/android-native-drive.sh"
+      - "tools/ci/apply-flutter-patch.sh"
+      - "tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch"
+      - "tools/ci/ios-native-drive.sh"
+      - "tools/ci/native-drive-common.sh"
+      - "apps/mobile/lib/features/journey/**"
+      - "apps/mobile/lib/features/route_draft/**"
+      - "apps/mobile/lib/features/routes/**"
+      - "apps/mobile/lib/generated/journey_v3/**"
+      - "apps/mobile/pubspec.yaml"
+      - "apps/mobile/pubspec.lock"
+      - "tools/ci/mobile-native-integration-workflow.test.mjs"
+      - "tools/ci/fixtures/android-drive/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-native:
+    name: Android Journey native smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NATIVE_TARGETS: native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: "3.44.0"
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Verify native workflow contract
+        run: node --test tools/ci/mobile-native-integration-workflow.test.mjs
+      - name: Prepare Android native evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/mobile-native-android"
+          printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"
+          : > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log"
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Journey native smoke
+        id: smoke
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          emulator-port: 5554
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          working-directory: apps/mobile
+          script: bash ../../tools/ci/android-native-drive.sh
+      - name: Record Android boot failure
+        if: failure() && steps.smoke.conclusion == 'failure'
+        shell: bash
+        run: |
+          receipt="${RUNNER_TEMP}/mobile-native-android/receipt.json"
+          if grep -q '"status":"PENDING"' "${receipt}"; then
+            printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"FAIL","target":"emulator","step":"boot"}' > "${receipt}"
+          fi
+      - name: Upload Android native evidence
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-native-android-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/mobile-native-android/receipt.json
+            ${{ runner.temp }}/mobile-native-android/flutter-drive-*.log
+            ${{ runner.temp }}/mobile-native-android/results-scale-*.json
+            ${{ runner.temp }}/mobile-native-android/adb-crash.log
+          if-no-files-found: error
+          retention-days: 5
+
+  ios-native:
+    name: iOS Journey native smoke
+    runs-on: macos-15
+    timeout-minutes: 35
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      NATIVE_TARGETS: native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:3.12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Pre-boot iOS simulator in background
+        shell: bash
+        run: |
+          xcrun simctl bootstatus "${IOS_SIMULATOR:-iPhone 17 Pro}" -b > /dev/null 2>&1 &
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: "3.44.0"
+          cache: true
+          # 패치한 SDK가 캐시에 저장되므로 키에 패치 해시를 넣는다. 패치가 바뀌면 이전 패치가 남은 SDK 대신 새 SDK를 받는다.
+          cache-key: flutter-:os:-:channel:-:version:-:arch:-:hash:-patch-${{ hashFiles('tools/ci/flutter-patches/*.patch') }}
+      # Flutter 3.44.0 tool은 시뮬레이터 log stream이 준비되기 전에 앱과 테스트를 시작해 VM service 주소나 테스트 첫 줄을 놓친다.
+      # 상류 수정(flutter/flutter#193142)과 확장을 적용한다. 자세한 내용은 패치 파일 머리말에 있다.
+      - name: Apply Flutter iOS simulator log stream fix
+        run: bash "${GITHUB_WORKSPACE}/tools/ci/apply-flutter-patch.sh" "${GITHUB_WORKSPACE}/tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch" "The iOS simulator log stream did not start"
+      # DerivedData(컴파일 산출물)와 SwiftPM SourcePackages(내려받은 의존성)를 run 사이에 재사용한다. 키에 Xcode·Flutter 버전을 넣어
+      # 다른 toolchain의 산출물은 복원하지 않는다. restore-keys는 같은 toolchain 안에서만 이전 캐시를 쓰며, 바뀐 소스는 Xcode가 다시 컴파일한다.
+      # 저장은 main push에서만 한다(아래 Save 단계). PR run은 main이 저장한 캐시를 읽기만 해서 저장소 캐시 쿼터를 쓰지 않는다.
+      - name: Resolve Xcode build cache key
+        id: toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode="$(xcodebuild -version | tr -s '[:space:]' '-')"
+          flutter_build="$(flutter --version --machine | jq -r '.frameworkVersion + "-" + .engineRevision[0:10]')"
+          echo "id=${xcode%-}-flutter-${flutter_build}" >> "${GITHUB_OUTPUT}"
+      - name: Restore Xcode build cache
+        id: xcode-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            apps/mobile/build/ios/SourcePackages
+          key: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'apps/mobile/ios/**') }}
+          restore-keys: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Prepare iOS native evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/mobile-native-ios"
+          printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-ios/receipt.json"
+          : > "${RUNNER_TEMP}/mobile-native-ios/simulator.log"
+      - name: Run iOS simulator native smoke
+        id: smoke
+        working-directory: apps/mobile
+        run: bash ../../tools/ci/ios-native-drive.sh
+      - name: Record iOS script failure
+        if: failure() && steps.smoke.conclusion == 'failure'
+        shell: bash
+        run: |
+          receipt="${RUNNER_TEMP}/mobile-native-ios/receipt.json"
+          if grep -q '"status":"PENDING"' "${receipt}"; then
+            printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"FAIL","target":"simulator","step":"boot"}' > "${receipt}"
+          fi
+      - name: Report Xcode build cache
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CACHE_HIT: ${{ steps.xcode-cache.outputs.cache-hit }}
+        run: |
+          case "${CACHE_HIT}" in
+            true) restored="exact hit" ;;
+            false) restored="partial restore from restore-keys" ;;
+            *) restored="miss" ;;
+          esac
+          echo "- Xcode build cache: ${restored}" >> "${GITHUB_STEP_SUMMARY}"
+          for dir in "${HOME}/Library/Developer/Xcode/DerivedData" apps/mobile/build/ios/SourcePackages; do
+            if [ -d "${dir}" ]; then du -sh "${dir}" | sed 's/^/- /' >> "${GITHUB_STEP_SUMMARY}"; fi
+          done
+      - name: Save Xcode build cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.xcode-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            apps/mobile/build/ios/SourcePackages
+          key: ${{ steps.xcode-cache.outputs.cache-primary-key }}
+      - name: Upload iOS native evidence
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-native-ios-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/mobile-native-ios/receipt.json
+            ${{ runner.temp }}/mobile-native-ios/flutter-drive-*.log
+            ${{ runner.temp }}/mobile-native-ios/results-scale-*.json
+            ${{ runner.temp }}/mobile-native-ios/simulator.log
+          if-no-files-found: error
+          retention-days: 5

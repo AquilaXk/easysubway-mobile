@@ -1,0 +1,421 @@
+import '../../../core/network/api_client.dart';
+import '../../../generated/journey_v3/journey_v3_contract.dart';
+import '../domain/journey_profile_models.dart';
+import '../domain/journey_repository.dart';
+
+class JourneyApiRepository implements JourneyRepository {
+  JourneyApiRepository(this._apiClient, {DateTime Function()? now})
+    : _now = now ?? DateTime.now;
+
+  static const _sessionPath = '/api/v3/journeys/session';
+  static const _searchPath = '/api/v3/journeys/search';
+  static const _profilePath = '/api/v3/journeys/profile';
+  static const _stationTimetableSearchPath =
+      '/api/v3/station-timetables/search';
+
+  final ApiClient _apiClient;
+  final DateTime Function() _now;
+
+  @override
+  Future<JourneySessionResponse> issueSession(
+    JourneySessionRequest request,
+  ) async {
+    final response = await _post(
+      JourneyOperation.issueJourneySession,
+      _sessionPath,
+      request.toJson(),
+    );
+    final body = _successBody(JourneyOperation.issueJourneySession, response);
+    try {
+      return JourneySessionResponse.fromJson(body);
+    } on FormatException catch (error) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.issueJourneySession,
+        cause: error,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) async {
+    if (sessionToken.trim().isEmpty) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.searchJourneys,
+        cause: const FormatException('Journey session token must be nonblank'),
+      );
+    }
+    final response = await _post(
+      JourneyOperation.searchJourneys,
+      _searchPath,
+      request.toJson(),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+      expectedRequestId: request.requestId,
+    );
+    final body = _successBody(JourneyOperation.searchJourneys, response);
+    try {
+      final success = JourneySearchSuccess.fromJson(body);
+      _validateSearchSuccess(success, request);
+      return success;
+    } on FormatException catch (error) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.searchJourneys,
+        cause: error,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async {
+    if (sessionToken.trim().isEmpty) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.searchStationTimetables,
+        cause: const FormatException('Journey session token must be nonblank'),
+      );
+    }
+    final response = await _post(
+      JourneyOperation.searchStationTimetables,
+      _stationTimetableSearchPath,
+      request.toJson(),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+    );
+    final body = _successBody(
+      JourneyOperation.searchStationTimetables,
+      response,
+    );
+    try {
+      final success = StationTimetableSearchSuccess.fromJson(body);
+      _validateStationTimetableSuccess(success, request);
+      return success;
+    } on FormatException catch (error) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.searchStationTimetables,
+        cause: error,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) async {
+    if (sessionToken.trim().isEmpty) {
+      throw const JourneyProtocolFailure(
+        JourneyOperation.profileJourneys,
+        cause: FormatException('Journey session token must be nonblank'),
+      );
+    }
+    final response = await _post(
+      JourneyOperation.profileJourneys,
+      _profilePath,
+      request.toJson(),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+      expectedRequestId: request.requestId,
+    );
+    final body = _successBody(JourneyOperation.profileJourneys, response);
+    try {
+      final success = JourneyProfileSuccess.fromJson(body);
+      _validateProfileSuccess(success, request);
+      return success;
+    } on FormatException catch (error) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.profileJourneys,
+        cause: error,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  Future<ApiResponse> _post(
+    JourneyOperation operation,
+    String path,
+    Map<String, Object?> body, {
+    Map<String, String> headers = const {},
+    String? expectedRequestId,
+  }) async {
+    final ApiResponse response;
+    try {
+      response = await _apiClient.postJson(path, body: body, headers: headers);
+    } on ApiException catch (error) {
+      if (error.statusCode != null) {
+        throw JourneyProtocolFailure(
+          operation,
+          cause: error,
+          statusCode: error.statusCode,
+        );
+      }
+      throw JourneyTransportFailure(operation, error);
+    } catch (error) {
+      throw JourneyTransportFailure(operation, error);
+    }
+
+    if (response.statusCode == 200) return response;
+
+    final bodyObject = response.jsonBody;
+    if (bodyObject is! Map<String, Object?>) {
+      throw JourneyProtocolFailure(
+        operation,
+        cause: const FormatException('Journey error body must be an object'),
+        statusCode: response.statusCode,
+      );
+    }
+    try {
+      final error = JourneyV3Error.fromResponse(
+        operation,
+        response.statusCode,
+        bodyObject,
+      );
+      if (expectedRequestId != null && error.requestId != expectedRequestId) {
+        throw const FormatException('Journey error requestId mismatch');
+      }
+      final disposition = JourneyErrorDispositions.lookup(
+        operation,
+        response.statusCode,
+        error.code,
+      );
+      throw JourneyRejectedFailure(
+        operation,
+        statusCode: response.statusCode,
+        error: error,
+        disposition: disposition,
+      );
+    } on JourneyRejectedFailure {
+      rethrow;
+    } on FormatException catch (error) {
+      throw JourneyProtocolFailure(
+        operation,
+        cause: error,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  Map<String, Object?> _successBody(
+    JourneyOperation operation,
+    ApiResponse response,
+  ) {
+    if (response.jsonBody case final Map<String, Object?> body) return body;
+    throw JourneyProtocolFailure(
+      operation,
+      cause: const FormatException('Journey success body must be an object'),
+      statusCode: response.statusCode,
+    );
+  }
+
+  void _validateSearchSuccess(
+    JourneySearchSuccess success,
+    JourneySearchRequest request,
+  ) {
+    if (success.requestId != request.requestId) {
+      throw const FormatException('Journey success requestId mismatch');
+    }
+    final policy = success.requestPolicy;
+    if (policy.timePolicy != request.timePolicy ||
+        policy.walkingPace != request.walkingPace ||
+        policy.mobilityProfile != request.mobilityProfile ||
+        policy.constraintMode != request.constraintMode ||
+        policy.maxTransfers != request.maxTransfers ||
+        policy.alternativeCount != request.alternativeCount) {
+      throw const FormatException('Journey success request policy mismatch');
+    }
+    if (!success.validUntil.isAfter(success.calculatedAt)) {
+      throw const FormatException('Journey success validity window mismatch');
+    }
+    if (success.serviceDate.toString() !=
+        seoulServiceDateForCutoff(
+          success.effectiveDepartureTime,
+          success.serviceDayCutoff,
+        )) {
+      throw const FormatException('Journey success service date mismatch');
+    }
+    if (success.journeys.length > policy.alternativeCount) {
+      throw const FormatException('Journey success candidate count mismatch');
+    }
+    _validateJourneyCandidates(
+      journeys: success.journeys,
+      constraintMode: policy.constraintMode,
+    );
+    _validateAlternativeCategories(success.journeys);
+  }
+
+  void _validateProfileSuccess(
+    JourneyProfileSuccess success,
+    JourneyProfileRequest request,
+  ) {
+    if (success.requestId != request.requestId) {
+      throw const FormatException('Journey profile requestId mismatch');
+    }
+    if (!success.validUntil.isAfter(success.calculatedAt)) {
+      throw const FormatException('Journey profile validity window mismatch');
+    }
+    _validateJourneyCandidates(
+      journeys: success.journeyList,
+      constraintMode: request.constraintMode,
+    );
+  }
+
+  void _validateJourneyCandidates({
+    required List<Journey> journeys,
+    required ConstraintMode constraintMode,
+  }) {
+    if (journeys.isEmpty) {
+      throw const FormatException('Journey candidates must be non-empty');
+    }
+    final journeyIds = <String>{};
+    for (final journey in journeys) {
+      if (journey.planSource != JourneyPlanSource.serverTimetableRaptor ||
+          !journeyIds.add(journey.journeyId)) {
+        throw const FormatException(
+          'Journey success identity or source mismatch',
+        );
+      }
+      if (constraintMode == ConstraintMode.requireStepFree &&
+          (journey.accessibility.result !=
+                  JourneyAccessibilityResult.verified ||
+              !journey.accessibility.stairFree)) {
+        throw const FormatException(
+          'Journey success accessibility constraint mismatch',
+        );
+      }
+      _validateJourneySemantics(journey);
+    }
+  }
+
+  /// backend #471 대표 묶음 규칙. 계약 문구만 검사한다(OpenAPI
+  /// `Journey.alternativeCategories`: "Exactly one journey carries FASTEST; each
+  /// group appears on at most one journey", `JourneySearchSuccess.journeys`:
+  /// 계단 없는 묶음은 "the earliest journey whose accessibility.stairFree is
+  /// true"). 묶음은 여정마다 선택 필드라 일부 여정에만 있어도 받는다.
+  void _validateAlternativeCategories(List<Journey> journeys) {
+    if (journeys.every((journey) => journey.alternativeCategories == null)) {
+      return;
+    }
+    final seen = <JourneyAlternativeCategory>{};
+    for (final journey in journeys) {
+      for (final category
+          in journey.alternativeCategories ??
+              const <JourneyAlternativeCategory>[]) {
+        if (!seen.add(category)) {
+          throw const FormatException(
+            'Journey alternative category must be on at most one journey',
+          );
+        }
+        if (category == JourneyAlternativeCategory.stairFree &&
+            !journey.accessibility.stairFree) {
+          throw const FormatException(
+            'Journey STAIR_FREE category requires a stair-free journey',
+          );
+        }
+      }
+    }
+    if (!seen.contains(JourneyAlternativeCategory.fastest)) {
+      throw const FormatException(
+        'Journey alternative categories must include FASTEST',
+      );
+    }
+  }
+
+  void _validateJourneySemantics(Journey journey) {
+    _requireOrdered(
+      journey.plannedDepartureTime,
+      journey.plannedArrivalTime,
+      'Journey candidate planned times',
+    );
+    if (journey.realtimeDepartureTime case final realtimeDeparture?) {
+      _requireOrdered(
+        realtimeDeparture,
+        journey.realtimeArrivalTime!,
+        'Journey candidate realtime times',
+      );
+    }
+    if (journey.accessibility.reasonCodes.any(
+      (reasonCode) => reasonCode.trim().isEmpty,
+    )) {
+      throw const FormatException(
+        'Journey accessibility reason code must be nonblank',
+      );
+    }
+    for (final leg in journey.legs) {
+      if (leg is! JourneyRideLeg) continue;
+      _requireOrdered(
+        leg.plannedDepartureTime,
+        leg.plannedArrivalTime,
+        'Journey ride planned times',
+      );
+      if (leg.realtimeDepartureTime case final realtimeDeparture?) {
+        _requireOrdered(
+          realtimeDeparture,
+          leg.realtimeArrivalTime!,
+          'Journey ride realtime times',
+        );
+      }
+    }
+  }
+
+  void _validateStationTimetableSuccess(
+    StationTimetableSearchSuccess success,
+    StationTimetableSearchRequest request,
+  ) {
+    if (success.stationId != request.stationId ||
+        success.lineId != request.lineId ||
+        success.selector.toJson().toString() !=
+            request.selector.toJson().toString() ||
+        success.serviceTimezone != StationTimetableServiceTimezone.asiaSeoul ||
+        !success.sourceIdentity.freshUntil.isAfter(_now())) {
+      throw const FormatException(
+        'Station timetable identity or freshness mismatch',
+      );
+    }
+    for (final group in success.directionGroups) {
+      if (group.directionName?.trim().isEmpty ?? false) {
+        throw const FormatException(
+          'Station timetable direction must be nonblank',
+        );
+      }
+      DateTime? previous;
+      for (final departure in group.departures) {
+        if (previous != null && departure.departureAt.isBefore(previous)) {
+          throw const FormatException(
+            'Station timetable departures must be ordered',
+          );
+        }
+        previous = departure.departureAt;
+        if (!_serviceDayInstantUtc(
+          departure.serviceDate.toString(),
+          departure.secondsFromServiceDayStart,
+        ).isAtSameMomentAs(departure.departureAt.toUtc())) {
+          throw const FormatException(
+            'Station timetable departure time mismatch',
+          );
+        }
+      }
+    }
+  }
+
+  DateTime _serviceDayInstantUtc(String serviceDate, int seconds) {
+    final parts = serviceDate.split('-').map(int.parse).toList(growable: false);
+    if (parts.length != 3 || seconds < 0 || seconds > 107999) {
+      throw const FormatException('Station timetable service day is invalid');
+    }
+    return DateTime.utc(
+      parts[0],
+      parts[1],
+      parts[2],
+    ).subtract(const Duration(hours: 9)).add(Duration(seconds: seconds));
+  }
+
+  void _requireOrdered(DateTime departure, DateTime arrival, String label) {
+    if (departure.isAfter(arrival)) {
+      throw FormatException('$label must be ordered');
+    }
+  }
+}

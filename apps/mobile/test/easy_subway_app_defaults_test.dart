@@ -1,0 +1,113 @@
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
+import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'support/easy_subway_app_fixture.dart';
+
+void main() {
+  test('기본 앱은 출시 범위에서 원격 개인 데이터 저장소를 만들지 않는다', () {
+    final app = buildEasySubwayTestApp(
+      repository: _UnusedStationSearchRepository(),
+      reportRepository: _UnusedFacilityReportRepository(),
+    );
+
+    expect(app.favoriteRepository, isNull);
+    expect(app.favoriteFacilityRepository, isNull);
+    expect(app.favoriteRouteRepository, isNull);
+    expect(app.notificationRepository, isNull);
+    expect(app.notificationPermissionProvider, isNull);
+  });
+
+  test('푸시 알림을 명시적으로 켜도 인증 없는 원격 저장소는 만들지 않는다', () {
+    final app = buildEasySubwayTestApp(
+      repository: _UnusedStationSearchRepository(),
+      reportRepository: _UnusedFacilityReportRepository(),
+      enablePushNotifications: true,
+    );
+
+    expect(app.favoriteRouteRepository, isNull);
+    expect(app.notificationRepository, isNull);
+    expect(app.notificationPermissionProvider, isNull);
+  });
+
+  testWidgets('인증 저장소가 없으면 홈 즐겨찾기를 노출하지 않는다', (tester) async {
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: _UnusedStationSearchRepository(),
+        reportRepository: _UnusedFacilityReportRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+
+    expect(find.byKey(const Key('favoritesButton')), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, '즐겨찾기'), findsNothing);
+    expect(find.byKey(const Key('notificationSettingsButton')), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, '알림 설정'), findsNothing);
+  });
+}
+
+OnboardingState _completedOnboardingState() {
+  return OnboardingState.completed(
+    result: OnboardingResult(
+      preset: MobilityPreset.slow,
+      preferences: const OnboardingViewPreferences.defaults(),
+    ),
+  );
+}
+
+class _UnusedStationSearchRepository implements StationSearchRepository {
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
+    throw UnimplementedError();
+  }
+}
+
+class _UnusedFacilityReportRepository implements FacilityReportRepository {
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() {
+    throw UnimplementedError();
+  }
+}

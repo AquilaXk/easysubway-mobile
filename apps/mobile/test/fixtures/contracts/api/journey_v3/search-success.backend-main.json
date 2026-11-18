@@ -1,0 +1,193 @@
+{
+  "contractVersion": "JOURNEY_SEARCH_V3",
+  "requestId": "01K1Y000000000000000000000",
+  "queryId": "query-1",
+  "calculatedAt": "2026-08-12T00:00:00Z",
+  "validUntil": "2026-08-12T00:05:00Z",
+  "effectiveDepartureTime": "2026-08-12T00:01:00Z",
+  "serviceDate": "2026-08-12",
+  "serviceTimezone": "Asia/Seoul",
+  "serviceDayCutoff": "03:00",
+  "sourceIdentity": {
+    "routeBundleId": "bundle-1",
+    "routeBundleSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "timetableSnapshotId": "timetable-1",
+    "accessibilitySnapshotId": "accessibility-1",
+    "realtimeSnapshotId": null
+  },
+  "requestPolicy": {
+    "timePolicy": "TIMETABLE_REQUIRED",
+    "walkingPace": "STANDARD",
+    "mobilityProfile": "STANDARD",
+    "constraintMode": "NONE",
+    "maxTransfers": 3,
+    "alternativeCount": 2
+  },
+  "journeys": [
+    {
+      "journeyId": "journey-first",
+      "status": "FOUND",
+      "planSource": "SERVER_TIMETABLE_RAPTOR",
+      "plannedDepartureTime": "2026-08-12T00:01:00Z",
+      "plannedArrivalTime": "2026-08-12T00:06:00Z",
+      "realtimeDepartureTime": null,
+      "realtimeArrivalTime": null,
+      "durationSeconds": 300,
+      "transferCount": 1,
+      "walkingDistanceMeters": 75,
+      "timeSource": "TIMETABLE",
+      "accessibility": {
+        "result": "VERIFIED",
+        "stairFree": true,
+        "reasonCodes": [
+          "STEP_FREE_PATH"
+        ]
+      },
+      "fare": {
+        "status": "UNAVAILABLE",
+        "sourceSnapshotIds": []
+      },
+      "legs": [
+        {
+          "type": "RIDE",
+          "lineId": "line-1",
+          "tripId": "trip-1",
+          "directionStationId": "station-direction",
+          "fromStationId": "station-origin",
+          "toStationId": "station-transfer-a",
+          "servicePattern": "LOCAL",
+          "plannedDepartureTime": "2026-08-12T00:01:00Z",
+          "plannedArrivalTime": "2026-08-12T00:04:30Z",
+          "realtimeDepartureTime": null,
+          "realtimeArrivalTime": null,
+          "stops": [
+            {
+              "stationId": "station-origin",
+              "plannedArrivalTime": null,
+              "plannedDepartureTime": "2026-08-12T00:01:00Z",
+              "realtimeArrivalTime": null,
+              "realtimeDepartureTime": null
+            },
+            {
+              "stationId": "station-transfer-a",
+              "plannedArrivalTime": "2026-08-12T00:04:30Z",
+              "plannedDepartureTime": null,
+              "realtimeArrivalTime": null,
+              "realtimeDepartureTime": null
+            }
+          ],
+          "alightingCarDoors": [],
+          "boardingPlatformGaps": [],
+          "alightingPlatformGaps": []
+        },
+        {
+          "type": "TRANSFER",
+          "fromStationId": "station-transfer-a",
+          "toStationId": "station-transfer-b",
+          "durationSeconds": 45
+        },
+        {
+          "type": "RIDE",
+          "lineId": "line-2",
+          "tripId": "trip-3",
+          "directionStationId": "station-direction-3",
+          "fromStationId": "station-transfer-b",
+          "toStationId": "station-destination",
+          "servicePattern": "LOCAL",
+          "plannedDepartureTime": "2026-08-12T00:05:15Z",
+          "plannedArrivalTime": "2026-08-12T00:06:00Z",
+          "realtimeDepartureTime": null,
+          "realtimeArrivalTime": null,
+          "stops": [
+            {
+              "stationId": "station-transfer-b",
+              "plannedArrivalTime": null,
+              "plannedDepartureTime": "2026-08-12T00:05:15Z",
+              "realtimeArrivalTime": null,
+              "realtimeDepartureTime": null
+            },
+            {
+              "stationId": "station-destination",
+              "plannedArrivalTime": "2026-08-12T00:06:00Z",
+              "plannedDepartureTime": null,
+              "realtimeArrivalTime": null,
+              "realtimeDepartureTime": null
+            }
+          ],
+          "alightingCarDoors": [],
+          "boardingPlatformGaps": [],
+          "alightingPlatformGaps": []
+        }
+      ],
+      "alternativeCategories": [
+        "FASTEST",
+        "STAIR_FREE"
+      ]
+    },
+    {
+      "journeyId": "journey-second",
+      "status": "FOUND",
+      "planSource": "SERVER_TIMETABLE_RAPTOR",
+      "plannedDepartureTime": "2026-08-12T00:02:00Z",
+      "plannedArrivalTime": "2026-08-12T00:07:00Z",
+      "realtimeDepartureTime": null,
+      "realtimeArrivalTime": null,
+      "durationSeconds": 300,
+      "transferCount": 0,
+      "walkingDistanceMeters": 20,
+      "timeSource": "TIMETABLE",
+      "accessibility": {
+        "result": "VERIFIED",
+        "stairFree": false,
+        "reasonCodes": [
+          "STAIRS_PRESENT"
+        ]
+      },
+      "fare": {
+        "status": "UNAVAILABLE",
+        "sourceSnapshotIds": []
+      },
+      "legs": [
+        {
+          "type": "RIDE",
+          "lineId": "line-2",
+          "tripId": "trip-2",
+          "directionStationId": "station-direction-2",
+          "fromStationId": "station-origin",
+          "toStationId": "station-destination",
+          "servicePattern": "LOCAL",
+          "plannedDepartureTime": "2026-08-12T00:02:00Z",
+          "plannedArrivalTime": "2026-08-12T00:07:00Z",
+          "realtimeDepartureTime": null,
+          "realtimeArrivalTime": null,
+          "stops": [
+            {
+              "stationId": "station-origin",
+              "plannedArrivalTime": null,
+              "plannedDepartureTime": "2026-08-12T00:02:00Z",
+              "realtimeArrivalTime": null,
+              "realtimeDepartureTime": null
+            },
+            {
+              "stationId": "station-destination",
+              "plannedArrivalTime": "2026-08-12T00:07:00Z",
+              "plannedDepartureTime": null,
+              "realtimeArrivalTime": null,
+              "realtimeDepartureTime": null
+            }
+          ],
+          "alightingCarDoors": [],
+          "boardingPlatformGaps": [],
+          "alightingPlatformGaps": []
+        }
+      ],
+      "alternativeCategories": [
+        "FEWEST_TRANSFERS"
+      ]
+    }
+  ],
+  "stairFreeAlternative": {
+    "status": "INCLUDED",
+    "facilityStatus": "UNOBSERVED"
+  }
+}

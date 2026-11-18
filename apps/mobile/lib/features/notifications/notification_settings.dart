@@ -1,0 +1,1317 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../accessible_design.dart';
+import '../../auth_headers.dart';
+import '../get_off_alarm/get_off_alarm_port.dart'
+    show NotificationPermissionProvider, NotificationPermissionStatus;
+import '../../mobile_error_reporter.dart';
+
+export '../get_off_alarm/get_off_alarm_port.dart'
+    show NotificationPermissionProvider, NotificationPermissionStatus;
+
+const _notificationSettingsTimeout = Duration(seconds: 8);
+const _notificationSettingsLoadErrorMessage = '알림 설정을 불러오지 못했어요.';
+const _notificationSettingsSaveErrorMessage = '알림 설정을 저장하지 못했어요.';
+const _deviceRegistrationErrorMessage = '알림을 켜지 못했어요.';
+const _notificationPermissionErrorMessage = '알림을 켤 수 있는지 확인하지 못했어요.';
+const _notificationRegistrationFailureNextAction =
+    '휴대전화 알림 설정과 인터넷 연결을 확인한 뒤 다시 시도해 주세요.';
+const _notificationSettingsContentPadding = EdgeInsets.only(bottom: 24);
+const _notificationSettingsFailurePadding = EdgeInsets.fromLTRB(20, 32, 20, 32);
+
+abstract class NotificationSettingsRepository {
+  Future<NotificationSettings> getNotificationSettings();
+
+  Future<NotificationSettings> saveNotificationSettings(
+    NotificationSettings settings,
+  );
+}
+
+abstract class DeviceRegistrationRepository {
+  Future<RegisteredDevice> registerDevice(DeviceRegistrationRequest request);
+}
+
+class MethodChannelNotificationPermissionProvider
+    implements NotificationPermissionProvider {
+  MethodChannelNotificationPermissionProvider({MethodChannel? channel})
+    : _channel =
+          channel ??
+          const MethodChannel('com.easysubway.easysubway_mobile/notifications');
+
+  final MethodChannel _channel;
+
+  @override
+  Future<NotificationPermissionStatus> requestNotificationPermission() async {
+    return _readStatus('requestNotificationPermission');
+  }
+
+  @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async {
+    return _readStatus('notificationPermissionStatus');
+  }
+
+  Future<NotificationPermissionStatus> _readStatus(String method) async {
+    try {
+      final granted = await _channel.invokeMethod<bool>(method) ?? false;
+      return granted
+          ? NotificationPermissionStatus.granted
+          : NotificationPermissionStatus.denied;
+    } on PlatformException catch (error, stackTrace) {
+      reportMobileError(error, stackTrace, context: '알림 권한 확인 중 예외가 발생했습니다.');
+      throw const NotificationSettingsException(
+        _notificationPermissionErrorMessage,
+      );
+    }
+  }
+}
+
+class NotificationSettingsApiRepository
+    implements NotificationSettingsRepository {
+  NotificationSettingsApiRepository({
+    required this.baseUri,
+    required this.authProvider,
+    HttpClient? httpClient,
+  }) : _httpClient = httpClient ?? HttpClient();
+
+  final Uri baseUri;
+  final AuthorizationHeaderProvider authProvider;
+  final HttpClient _httpClient;
+
+  @override
+  Future<NotificationSettings> getNotificationSettings() async {
+    final data = await _requestData(
+      'GET',
+      baseUri.resolve('/api/v1/me/notification-settings'),
+      errorMessage: _notificationSettingsLoadErrorMessage,
+    );
+    if (data is! Map<String, Object?>) {
+      throw const NotificationSettingsException(
+        _notificationSettingsLoadErrorMessage,
+      );
+    }
+
+    try {
+      return NotificationSettings.fromJson(data);
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '알림 설정 조회 응답 처리 중 예외가 발생했습니다.',
+      );
+      throw const NotificationSettingsException(
+        _notificationSettingsLoadErrorMessage,
+      );
+    }
+  }
+
+  @override
+  Future<NotificationSettings> saveNotificationSettings(
+    NotificationSettings settings,
+  ) async {
+    final data = await _requestData(
+      'PUT',
+      baseUri.resolve('/api/v1/me/notification-settings'),
+      errorMessage: _notificationSettingsSaveErrorMessage,
+      body: settings.toRequestJson(),
+    );
+    if (data is! Map<String, Object?>) {
+      throw const NotificationSettingsException(
+        _notificationSettingsSaveErrorMessage,
+      );
+    }
+
+    try {
+      return NotificationSettings.fromJson(data);
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '알림 설정 저장 응답 처리 중 예외가 발생했습니다.',
+      );
+      throw const NotificationSettingsException(
+        _notificationSettingsSaveErrorMessage,
+      );
+    }
+  }
+
+  Future<Object?> _requestData(
+    String method,
+    Uri uri, {
+    required String errorMessage,
+    Map<String, Object?>? body,
+  }) async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final request = await _httpClient
+            .openUrl(method, uri)
+            .timeout(_notificationSettingsTimeout);
+        final authorizationHeader = await authProvider
+            .authorizationHeader()
+            .timeout(_notificationSettingsTimeout);
+        if (authorizationHeader != null) {
+          request.headers.set(
+            HttpHeaders.authorizationHeader,
+            authorizationHeader,
+          );
+        }
+        if (body != null) {
+          request.headers.contentType = ContentType.json;
+          request.write(jsonEncode(body));
+        }
+
+        final response = await request.close().timeout(
+          _notificationSettingsTimeout,
+        );
+        final responseBody = await utf8
+            .decodeStream(response)
+            .timeout(_notificationSettingsTimeout);
+
+        if (response.statusCode == HttpStatus.unauthorized &&
+            authorizationHeader != null &&
+            attempt == 0) {
+          // 인증이 만료된 경우 저장소를 비우고 한 번만 다시 시도한다.
+          await authProvider.invalidateAuthorization().timeout(
+            _notificationSettingsTimeout,
+          );
+          continue;
+        }
+
+        if (response.statusCode < HttpStatus.ok ||
+            response.statusCode >= HttpStatus.multipleChoices) {
+          throw NotificationSettingsException(errorMessage);
+        }
+
+        final decoded = jsonDecode(responseBody);
+        if (decoded is! Map<String, Object?> || decoded['success'] != true) {
+          throw NotificationSettingsException(errorMessage);
+        }
+        return decoded['data'];
+      } on NotificationSettingsException {
+        rethrow;
+      } catch (error, stackTrace) {
+        reportMobileError(
+          error,
+          stackTrace,
+          context: '알림 설정 API 요청 처리 중 예외가 발생했습니다.',
+        );
+        throw NotificationSettingsException(errorMessage);
+      }
+    }
+    throw NotificationSettingsException(errorMessage);
+  }
+}
+
+class DeviceRegistrationApiRepository implements DeviceRegistrationRepository {
+  DeviceRegistrationApiRepository({
+    required this.baseUri,
+    required this.authProvider,
+    HttpClient? httpClient,
+  }) : _httpClient = httpClient ?? HttpClient();
+
+  final Uri baseUri;
+  final AuthorizationHeaderProvider authProvider;
+  final HttpClient _httpClient;
+
+  @override
+  Future<RegisteredDevice> registerDevice(
+    DeviceRegistrationRequest registrationRequest,
+  ) async {
+    try {
+      return await _postDeviceWithAuthorizationRetry(registrationRequest);
+    } on NotificationSettingsException {
+      rethrow;
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '알림 등록 응답 처리 중 예외가 발생했습니다.',
+      );
+      throw const NotificationSettingsException(
+        _deviceRegistrationErrorMessage,
+      );
+    }
+  }
+
+  Future<RegisteredDevice> _postDeviceWithAuthorizationRetry(
+    DeviceRegistrationRequest registrationRequest,
+  ) async {
+    for (var attempt = 0; attempt < 2; attempt++) {
+      final request = await _httpClient
+          .postUrl(baseUri.resolve('/api/v1/devices'))
+          .timeout(_notificationSettingsTimeout);
+      final authorizationHeader = await authProvider
+          .authorizationHeader()
+          .timeout(_notificationSettingsTimeout);
+      if (authorizationHeader != null) {
+        request.headers.set(
+          HttpHeaders.authorizationHeader,
+          authorizationHeader,
+        );
+      }
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(registrationRequest.toJson()));
+
+      final response = await request.close().timeout(
+        _notificationSettingsTimeout,
+      );
+      final body = await utf8
+          .decodeStream(response)
+          .timeout(_notificationSettingsTimeout);
+
+      if (response.statusCode == HttpStatus.unauthorized &&
+          authorizationHeader != null &&
+          attempt == 0) {
+        // 기기 등록 인증이 만료된 경우 한 번만 다시 시도한다.
+        await authProvider.invalidateAuthorization().timeout(
+          _notificationSettingsTimeout,
+        );
+        continue;
+      }
+
+      if (response.statusCode < HttpStatus.ok ||
+          response.statusCode >= HttpStatus.multipleChoices) {
+        throw const NotificationSettingsException(
+          _deviceRegistrationErrorMessage,
+        );
+      }
+
+      return _registeredDeviceFromBody(body);
+    }
+    throw const NotificationSettingsException(_deviceRegistrationErrorMessage);
+  }
+
+  RegisteredDevice _registeredDeviceFromBody(String body) {
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is! Map<String, Object?> || decoded['success'] != true) {
+        throw const NotificationSettingsException(
+          _deviceRegistrationErrorMessage,
+        );
+      }
+
+      final data = decoded['data'];
+      if (data is! Map<String, Object?>) {
+        throw const NotificationSettingsException(
+          _deviceRegistrationErrorMessage,
+        );
+      }
+
+      return RegisteredDevice.fromJson(data);
+    } on NotificationSettingsException {
+      rethrow;
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '알림 등록 응답 파싱 중 예외가 발생했습니다.',
+      );
+      throw const NotificationSettingsException(
+        _deviceRegistrationErrorMessage,
+      );
+    }
+  }
+}
+
+class NotificationSettingsException implements Exception {
+  const NotificationSettingsException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+enum DevicePlatform {
+  android('ANDROID'),
+  ios('IOS');
+
+  const DevicePlatform(this.apiValue);
+
+  factory DevicePlatform.fromJson(String value) {
+    return switch (value) {
+      'ANDROID' => DevicePlatform.android,
+      'IOS' => DevicePlatform.ios,
+      _ => throw const NotificationSettingsException(
+        _deviceRegistrationErrorMessage,
+      ),
+    };
+  }
+
+  final String apiValue;
+}
+
+class DeviceRegistrationRequest {
+  const DeviceRegistrationRequest({
+    required this.platform,
+    required this.deviceToken,
+  });
+
+  final DevicePlatform platform;
+  final String deviceToken;
+
+  Map<String, Object?> toJson() {
+    return {'platform': platform.apiValue, 'deviceToken': deviceToken.trim()};
+  }
+}
+
+class RegisteredDevice {
+  const RegisteredDevice({
+    required this.userId,
+    required this.platform,
+    required this.deviceToken,
+    required this.registeredAt,
+  });
+
+  factory RegisteredDevice.fromJson(Map<String, Object?> json) {
+    return RegisteredDevice(
+      userId: _requiredString(json, 'userId'),
+      platform: DevicePlatform.fromJson(_requiredString(json, 'platform')),
+      deviceToken: _requiredString(json, 'deviceToken'),
+      registeredAt: _requiredString(json, 'registeredAt'),
+    );
+  }
+
+  final String userId;
+  final DevicePlatform platform;
+  final String deviceToken;
+  final String registeredAt;
+}
+
+class NotificationSettings {
+  const NotificationSettings({
+    required this.userId,
+    required this.favoriteStationFacilityAlerts,
+    required this.favoriteRouteFacilityAlerts,
+    required this.reportStatusAlerts,
+    required this.dataQualityAlerts,
+    required this.updatedAt,
+  });
+
+  factory NotificationSettings.fromJson(Map<String, Object?> json) {
+    return NotificationSettings(
+      userId: _requiredString(json, 'userId'),
+      favoriteStationFacilityAlerts: _requiredBool(
+        json,
+        'favoriteStationFacilityAlerts',
+      ),
+      favoriteRouteFacilityAlerts: _requiredBool(
+        json,
+        'favoriteRouteFacilityAlerts',
+      ),
+      reportStatusAlerts: json['reportStatusAlerts'] is bool
+          ? json['reportStatusAlerts']! as bool
+          : true,
+      dataQualityAlerts: _requiredBool(json, 'dataQualityAlerts'),
+      updatedAt: _requiredString(json, 'updatedAt'),
+    );
+  }
+
+  final String userId;
+  final bool favoriteStationFacilityAlerts;
+  final bool favoriteRouteFacilityAlerts;
+  final bool reportStatusAlerts;
+  final bool dataQualityAlerts;
+  final String updatedAt;
+
+  Map<String, Object?> toRequestJson() => toJson();
+
+  Map<String, Object?> toJson() {
+    return {
+      'userId': userId,
+      'favoriteStationFacilityAlerts': favoriteStationFacilityAlerts,
+      'favoriteRouteFacilityAlerts': favoriteRouteFacilityAlerts,
+      'reportStatusAlerts': reportStatusAlerts,
+      'dataQualityAlerts': dataQualityAlerts,
+    };
+  }
+
+  NotificationSettings copyWith({
+    String? userId,
+    bool? favoriteStationFacilityAlerts,
+    bool? favoriteRouteFacilityAlerts,
+    bool? reportStatusAlerts,
+    bool? dataQualityAlerts,
+    String? updatedAt,
+  }) {
+    return NotificationSettings(
+      userId: userId ?? this.userId,
+      favoriteStationFacilityAlerts:
+          favoriteStationFacilityAlerts ?? this.favoriteStationFacilityAlerts,
+      favoriteRouteFacilityAlerts:
+          favoriteRouteFacilityAlerts ?? this.favoriteRouteFacilityAlerts,
+      reportStatusAlerts: reportStatusAlerts ?? this.reportStatusAlerts,
+      dataQualityAlerts: dataQualityAlerts ?? this.dataQualityAlerts,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+}
+
+enum NotificationSettingsStatus { loading, ready, saving, failure }
+
+class NotificationSettingsState {
+  const NotificationSettingsState({
+    required this.status,
+    this.settings,
+    this.message = '',
+  });
+
+  const NotificationSettingsState.loading()
+    : status = NotificationSettingsStatus.loading,
+      settings = null,
+      message = '';
+
+  final NotificationSettingsStatus status;
+  final NotificationSettings? settings;
+  final String message;
+
+  bool get isSaving => status == NotificationSettingsStatus.saving;
+}
+
+class NotificationSettingsController extends ChangeNotifier {
+  NotificationSettingsController({required this.repository});
+
+  final NotificationSettingsRepository repository;
+
+  NotificationSettingsState _state = const NotificationSettingsState.loading();
+  bool? _masterPushAlertsOverride;
+  NotificationSettings? _previousEnabledSettings;
+  NotificationSettings? _lastSavedSettings;
+  Timer? _debounceTimer;
+  bool _isDisposed = false;
+  void Function(String message)? onSaveError;
+
+  NotificationSettingsState get state => _state;
+
+  bool isMasterPushAlertsEnabled(NotificationSettings settings) {
+    if (_masterPushAlertsOverride != null) {
+      return _masterPushAlertsOverride!;
+    }
+    return _hasAnyActivePushAlerts(settings);
+  }
+
+  static bool _hasAnyActivePushAlerts(NotificationSettings settings) {
+    return settings.favoriteStationFacilityAlerts ||
+        settings.favoriteRouteFacilityAlerts ||
+        settings.dataQualityAlerts;
+  }
+
+  void updateMasterPushAlerts(bool value) {
+    final settings = _state.settings;
+    if (settings == null || _state.isSaving) {
+      return;
+    }
+    _masterPushAlertsOverride = value;
+    if (!value) {
+      if (_hasAnyActivePushAlerts(settings)) {
+        _previousEnabledSettings = settings;
+      }
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: settings.copyWith(
+            favoriteStationFacilityAlerts: false,
+            favoriteRouteFacilityAlerts: false,
+            dataQualityAlerts: false,
+          ),
+        ),
+      );
+    } else {
+      final restored = _previousEnabledSettings;
+      final nextSettings =
+          (restored != null && _hasAnyActivePushAlerts(restored))
+          ? settings.copyWith(
+              favoriteStationFacilityAlerts:
+                  restored.favoriteStationFacilityAlerts,
+              favoriteRouteFacilityAlerts: restored.favoriteRouteFacilityAlerts,
+              dataQualityAlerts: restored.dataQualityAlerts,
+            )
+          : settings.copyWith(
+              favoriteStationFacilityAlerts: true,
+              favoriteRouteFacilityAlerts: true,
+              dataQualityAlerts: true,
+            );
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: nextSettings,
+        ),
+      );
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      unawaited(save());
+    });
+  }
+
+  Future<void> load() async {
+    _masterPushAlertsOverride = null;
+    _previousEnabledSettings = null;
+    _emitState(const NotificationSettingsState.loading());
+
+    try {
+      final settings = await repository.getNotificationSettings();
+      _lastSavedSettings = settings;
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: settings,
+        ),
+      );
+    } on NotificationSettingsException catch (error) {
+      _emitFailure(error.message);
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '알림 설정 화면 조회 처리 중 예외가 발생했습니다.',
+      );
+      _emitFailure(_notificationSettingsLoadErrorMessage);
+    }
+  }
+
+  void updateFavoriteStationFacilityAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
+    _updateSettings(
+      (settings) => settings.copyWith(favoriteStationFacilityAlerts: value),
+    );
+  }
+
+  void updateFavoriteRouteFacilityAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
+    _updateSettings(
+      (settings) => settings.copyWith(favoriteRouteFacilityAlerts: value),
+    );
+  }
+
+  void updateReportStatusAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
+    _updateSettings((settings) => settings.copyWith(reportStatusAlerts: value));
+  }
+
+  void updateDataQualityAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
+    _updateSettings((settings) => settings.copyWith(dataQualityAlerts: value));
+  }
+
+  Future<void> save() async {
+    _debounceTimer?.cancel();
+    var settings = _state.settings;
+    if (settings == null || _state.isSaving) {
+      return;
+    }
+
+    if (!isMasterPushAlertsEnabled(settings)) {
+      settings = settings.copyWith(
+        favoriteStationFacilityAlerts: false,
+        favoriteRouteFacilityAlerts: false,
+        dataQualityAlerts: false,
+      );
+    }
+
+    _emitState(
+      NotificationSettingsState(
+        status: NotificationSettingsStatus.saving,
+        settings: settings,
+      ),
+    );
+
+    try {
+      final savedSettings = await repository.saveNotificationSettings(settings);
+      _lastSavedSettings = savedSettings;
+      _masterPushAlertsOverride = null;
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: savedSettings,
+        ),
+      );
+    } on NotificationSettingsException catch (error) {
+      final rollback = _lastSavedSettings ?? settings;
+      _masterPushAlertsOverride = null;
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: rollback,
+          message: error.message,
+        ),
+      );
+      onSaveError?.call(error.message);
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '알림 설정 화면 저장 처리 중 예외가 발생했습니다.',
+      );
+      final rollback = _lastSavedSettings ?? settings;
+      _masterPushAlertsOverride = null;
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: rollback,
+          message: _notificationSettingsSaveErrorMessage,
+        ),
+      );
+      onSaveError?.call(_notificationSettingsSaveErrorMessage);
+    }
+  }
+
+  void _updateSettings(
+    NotificationSettings Function(NotificationSettings settings) update,
+  ) {
+    final settings = _state.settings;
+    if (settings == null || _state.isSaving) {
+      return;
+    }
+    _emitState(
+      NotificationSettingsState(
+        status: NotificationSettingsStatus.ready,
+        settings: update(settings),
+      ),
+    );
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      unawaited(save());
+    });
+  }
+
+  void _emitFailure(String message) {
+    _emitState(
+      NotificationSettingsState(
+        status: NotificationSettingsStatus.failure,
+        message: message,
+      ),
+    );
+  }
+
+  void _emitState(NotificationSettingsState nextState) {
+    if (_isDisposed) {
+      return;
+    }
+    _state = nextState;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _debounceTimer?.cancel();
+    _isDisposed = true;
+    super.dispose();
+  }
+}
+
+class NotificationSettingsScreen extends StatefulWidget {
+  const NotificationSettingsScreen({
+    required this.repository,
+    this.notificationPermissionProvider,
+    super.key,
+  });
+
+  final NotificationSettingsRepository repository;
+  final NotificationPermissionProvider? notificationPermissionProvider;
+
+  @override
+  State<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
+}
+
+class _NotificationSettingsScreenState
+    extends State<NotificationSettingsScreen> {
+  late final NotificationSettingsController _controller;
+  bool _isRequestingNotificationPermission = false;
+  String _notificationPermissionMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = NotificationSettingsController(repository: widget.repository);
+    _controller.onSaveError = (message) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    };
+    unawaited(_controller.load());
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: EasySubwayAccessibleColors.surface,
+      appBar: AppBar(
+        title: const Text('알림 설정'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
+      ),
+      body: SafeArea(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, _) {
+            final state = _controller.state;
+            final settings = state.settings;
+            if (state.status == NotificationSettingsStatus.failure &&
+                settings == null) {
+              return _NotificationSettingsFailure(
+                message: state.message,
+                onRetry: _controller.load,
+              );
+            }
+            if (settings == null) {
+              return const _NotificationSettingsLoading();
+            }
+            return _NotificationSettingsContent(
+              state: state,
+              notificationPermissionProvider:
+                  widget.notificationPermissionProvider,
+              isRequestingNotificationPermission:
+                  _isRequestingNotificationPermission,
+              notificationPermissionMessage: _notificationPermissionMessage,
+              onRequestNotificationPermission: _requestNotificationPermission,
+              onMasterPushAlertsChanged: _controller.updateMasterPushAlerts,
+              isMasterPushAlertsEnabled: _controller.isMasterPushAlertsEnabled(
+                settings,
+              ),
+              onFavoriteStationFacilityAlertsChanged:
+                  _controller.updateFavoriteStationFacilityAlerts,
+              onFavoriteRouteFacilityAlertsChanged:
+                  _controller.updateFavoriteRouteFacilityAlerts,
+              onDataQualityAlertsChanged: _controller.updateDataQualityAlerts,
+              onSave: _controller.save,
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _requestNotificationPermission() async {
+    final provider = widget.notificationPermissionProvider;
+    if (provider == null || _isRequestingNotificationPermission) {
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('알림 받기'),
+        content: const Text(
+          '즐겨찾는 역과 경로의 시설 변경, 제보 진행 상황, 최신 안내를 알려드려요. 알림 설정에서 언제든 끌 수 있습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('나중에'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('켜기'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || confirmed != true) {
+      return;
+    }
+
+    setState(() {
+      _isRequestingNotificationPermission = true;
+      _notificationPermissionMessage = '';
+    });
+
+    try {
+      final status = await provider.requestNotificationPermission();
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _notificationPermissionMessage =
+            status == NotificationPermissionStatus.granted
+            ? '알림이 켜졌어요.'
+            : '휴대전화 설정에서 알림을 허용해 주세요.';
+      });
+    } on NotificationSettingsException catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _notificationPermissionMessage = error.message;
+      });
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '알림 켜기 화면 처리 중 예외가 발생했습니다.',
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _notificationPermissionMessage = _notificationPermissionErrorMessage;
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isRequestingNotificationPermission = false;
+        });
+      }
+    }
+  }
+}
+
+class _NotificationSettingsContent extends StatelessWidget {
+  const _NotificationSettingsContent({
+    required this.state,
+    required this.notificationPermissionProvider,
+    required this.isRequestingNotificationPermission,
+    required this.notificationPermissionMessage,
+    required this.onRequestNotificationPermission,
+    required this.onMasterPushAlertsChanged,
+    required this.isMasterPushAlertsEnabled,
+    required this.onFavoriteStationFacilityAlertsChanged,
+    required this.onFavoriteRouteFacilityAlertsChanged,
+    required this.onDataQualityAlertsChanged,
+    required this.onSave,
+  });
+
+  final NotificationSettingsState state;
+  final NotificationPermissionProvider? notificationPermissionProvider;
+  final bool isRequestingNotificationPermission;
+  final String notificationPermissionMessage;
+  final VoidCallback onRequestNotificationPermission;
+  final ValueChanged<bool> onMasterPushAlertsChanged;
+  final bool isMasterPushAlertsEnabled;
+  final ValueChanged<bool> onFavoriteStationFacilityAlertsChanged;
+  final ValueChanged<bool> onFavoriteRouteFacilityAlertsChanged;
+  final ValueChanged<bool> onDataQualityAlertsChanged;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = state.settings!;
+    final isSaving = state.isSaving;
+    final subOptionsEnabled = !isSaving && isMasterPushAlertsEnabled;
+
+    return ListView(
+      padding: _notificationSettingsContentPadding,
+      children: [
+        if (notificationPermissionProvider != null) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Semantics(
+                  label: isRequestingNotificationPermission
+                      ? '알림 확인 중'
+                      : '알림 켜기',
+                  child: OutlinedButton.icon(
+                    key: const Key('notificationPermissionButton'),
+                    onPressed: isRequestingNotificationPermission
+                        ? null
+                        : onRequestNotificationPermission,
+                    icon: isRequestingNotificationPermission
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          )
+                        : const Icon(
+                            Icons.notifications_active_outlined,
+                            size: 20,
+                          ),
+                    label: Text(
+                      isRequestingNotificationPermission ? '확인 중' : '알림 켜기',
+                    ),
+                  ),
+                ),
+                if (notificationPermissionMessage.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _NotificationSettingsMessage(
+                    message: notificationPermissionMessage,
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const Divider(
+            height: 1,
+            thickness: 1,
+            color: EasySubwayAccessibleColors.line,
+          ),
+        ],
+        if (state.message.isNotEmpty) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: _NotificationSettingsMessage(message: state.message),
+          ),
+          const Divider(
+            height: 1,
+            thickness: 1,
+            color: EasySubwayAccessibleColors.line,
+          ),
+        ],
+        _NotificationSwitchGroup(
+          tiles: [
+            _NotificationSwitchTile(
+              key: const Key('notificationSwitch-masterPushAlerts'),
+              title: '푸시 알림 받기',
+              subtitle: '앱의 주요 상태 및 소식 알림을 받아요',
+              value: isMasterPushAlertsEnabled,
+              enabled: !isSaving,
+              onChanged: onMasterPushAlertsChanged,
+            ),
+          ],
+        ),
+        const _NotificationSectionHeader(title: '이용 및 시설 알림'),
+        _NotificationSwitchGroup(
+          tiles: [
+            _NotificationSwitchTile(
+              key: const Key(
+                'notificationSwitch-favoriteStationFacilityAlerts',
+              ),
+              title: '역 시설 알림',
+              subtitle: '즐겨찾는 역의 승강기·리프트 고장 및 점검 소식',
+              value: settings.favoriteStationFacilityAlerts,
+              enabled: subOptionsEnabled,
+              onChanged: onFavoriteStationFacilityAlertsChanged,
+            ),
+            _NotificationSwitchTile(
+              key: const Key('notificationSwitch-favoriteRouteFacilityAlerts'),
+              title: '경로 시설 알림',
+              subtitle: '저장한 이동 경로의 환승 편의시설 운행 상태 안내',
+              value: settings.favoriteRouteFacilityAlerts,
+              enabled: subOptionsEnabled,
+              onChanged: onFavoriteRouteFacilityAlertsChanged,
+            ),
+          ],
+        ),
+        const _NotificationSectionHeader(title: '공지 및 서비스 안내'),
+        _NotificationSwitchGroup(
+          tiles: [
+            _NotificationSwitchTile(
+              key: const Key('notificationSwitch-dataQualityAlerts'),
+              title: '최신 안내 알림',
+              subtitle: '서비스 점검 및 중요한 지하철 운행 공지 안내',
+              value: settings.dataQualityAlerts,
+              enabled: subOptionsEnabled,
+              onChanged: onDataQualityAlertsChanged,
+            ),
+          ],
+        ),
+        const Divider(
+          height: 1,
+          thickness: 1,
+          color: EasySubwayAccessibleColors.line,
+        ),
+        const SizedBox(height: 8),
+        Semantics(
+          label: isSaving ? '알림 설정 저장 중' : '알림 설정 저장',
+          button: true,
+          excludeSemantics: true,
+          child: GestureDetector(
+            key: const Key('notificationSettingsSaveButton'),
+            behavior: HitTestBehavior.opaque,
+            onTap: isSaving ? null : onSave,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    if (isSaving) ...[
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '저장 중...',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: EasySubwayAccessibleColors.mutedText,
+                        ),
+                      ),
+                    ] else ...[
+                      const Icon(
+                        Icons.check_circle_outline,
+                        size: 16,
+                        color: EasySubwayAccessibleColors.mutedText,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '변경 시 자동으로 저장됩니다',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: EasySubwayAccessibleColors.mutedText,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NotificationSectionHeader extends StatelessWidget {
+  const _NotificationSectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: EasySubwayAccessibleColors.scaffoldSurface,
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+          child: Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: EasySubwayAccessibleColors.secondaryText,
+                fontWeight: EasySubwayFontWeight.emphasis,
+                height: 1.25,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationSettingsMessage extends StatelessWidget {
+  const _NotificationSettingsMessage({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final shouldShowNextAction =
+        _shouldShowNotificationRegistrationFailureNextAction(message);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          container: true,
+          excludeSemantics: true,
+          liveRegion: true,
+          label: message,
+          child: Text(
+            message,
+            key: const Key('notificationSettingsMessage'),
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: EasySubwayAccessibleColors.text,
+              height: 1.35,
+            ),
+          ),
+        ),
+        if (shouldShowNextAction) ...[
+          const SizedBox(height: 8),
+          Semantics(
+            key: const Key('notificationRegistrationFailureNextAction'),
+            container: true,
+            excludeSemantics: true,
+            liveRegion: true,
+            label: '도움말, $_notificationRegistrationFailureNextAction',
+            child: Text(
+              _notificationRegistrationFailureNextAction,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: EasySubwayAccessibleColors.mutedText,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+bool _shouldShowNotificationRegistrationFailureNextAction(String message) {
+  return message == _deviceRegistrationErrorMessage ||
+      message == _notificationPermissionErrorMessage;
+}
+
+class _NotificationSwitchTile extends StatelessWidget {
+  const _NotificationSwitchTile({
+    required super.key,
+    required this.title,
+    this.subtitle,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String? subtitle;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      excludeSemantics: true,
+      label: '$title ${value ? '켜짐' : '꺼짐'}',
+      hint: subtitle,
+      toggled: value,
+      enabled: enabled,
+      onTap: enabled ? () => onChanged(!value) : null,
+      child: SwitchListTile.adaptive(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        activeThumbColor: EasySubwayAccessibleColors.interactionOnPrimary,
+        activeTrackColor: EasySubwayAccessibleColors.brandSignature,
+        inactiveThumbColor: EasySubwayAccessibleColors.interactionOnPrimary,
+        inactiveTrackColor: EasySubwayAccessibleColors.switchInactiveTrack,
+        title: Text(
+          title,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: EasySubwayFontWeight.regular,
+            color: enabled
+                ? EasySubwayAccessibleColors.text
+                : EasySubwayAccessibleColors.mutedText,
+            height: 1.3,
+          ),
+        ),
+        subtitle: subtitle == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: enabled
+                        ? EasySubwayAccessibleColors.secondaryText
+                        : EasySubwayAccessibleColors.mutedText,
+                    height: 1.35,
+                  ),
+                ),
+              ),
+        value: value,
+        onChanged: enabled ? onChanged : null,
+      ),
+    );
+  }
+}
+
+/// 알림 스위치들을 무박스 행 + 1px 구분선으로 나눈다 (#1915).
+class _NotificationSwitchGroup extends StatelessWidget {
+  const _NotificationSwitchGroup({required this.tiles});
+
+  final List<Widget> tiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: EasySubwayAccessibleColors.surfaceDefault,
+      child: Column(
+        children: [
+          for (var i = 0; i < tiles.length; i++) ...[
+            if (i > 0)
+              const Divider(
+                height: 1,
+                thickness: 1,
+                indent: 20,
+                endIndent: 20,
+                color: EasySubwayAccessibleColors.line,
+              ),
+            tiles[i],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _NotificationSettingsLoading extends StatelessWidget {
+  const _NotificationSettingsLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Semantics(
+        liveRegion: true,
+        label: '알림 설정 불러오는 중',
+        child: const CircularProgressIndicator(),
+      ),
+    );
+  }
+}
+
+class _NotificationSettingsFailure extends StatelessWidget {
+  const _NotificationSettingsFailure({
+    required this.message,
+    required this.onRetry,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: _notificationSettingsFailurePadding,
+      children: [
+        Semantics(
+          liveRegion: true,
+          label: message,
+          child: Text(
+            message,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: EasySubwayFontWeight.emphasis,
+              color: EasySubwayAccessibleColors.text,
+              height: 1.35,
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          key: const Key('notificationSettingsRetryButton'),
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh),
+          label: const Text('다시 시도'),
+        ),
+      ],
+    );
+  }
+}
+
+String _requiredString(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is String && value.trim().isNotEmpty) {
+    return value;
+  }
+  throw FormatException('Missing required notification setting field: $key');
+}
+
+bool _requiredBool(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is bool) {
+    return value;
+  }
+  throw FormatException('Missing required notification setting boolean: $key');
+}

@@ -1,0 +1,131 @@
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 100.0.0 (109.0.0 available)
+  _flutterfire_internals 1.3.76 (1.3.78 available)
+  analyzer 13.0.0 (14.5.0 available)
+  build 4.0.7 (5.0.0 available)
+  build_config 1.3.0 (1.4.0 available)
+  build_daemon 4.1.1 (4.1.7 available)
+  build_runner 2.15.1 (2.17.1 available)
+  built_collection 5.1.1 (5.1.2 available)
+  built_value 8.12.6 (8.13.0 available)
+  cli_util 0.4.2 (0.6.0 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.1.0 available)
+  connectivity_plus 7.3.1 (7.3.2 available)
+  cross_file 0.3.5+2 (0.4.0 available)
+  dart_style 3.1.9 (3.1.14 available)
+  dbus 0.7.13 (0.8.0 available)
+  drift 2.34.3 (2.35.2 available)
+  drift_dev 2.35.0 (2.35.1 available)
+  file_selector_linux 0.9.4 (0.9.4+1 available)
+  file_selector_macos 0.9.5 (0.9.5+1 available)
+  file_selector_windows 0.9.3+5 (0.9.3+6 available)
+  firebase_core 4.13.0 (5.0.0 available)
+  firebase_core_platform_interface 8.1.0 (8.1.1 available)
+  firebase_core_web 3.10.0 (4.0.0 available)
+  firebase_crashlytics 5.2.7 (6.0.0 available)
+  firebase_crashlytics_platform_interface 3.8.27 (3.9.1 available)
+  flutter_local_notifications 22.3.0 (22.3.2 available)
+  flutter_local_notifications_linux 8.0.1 (8.0.2 available)
+  flutter_secure_storage_linux 3.0.1 (3.0.3 available)
+  glob 2.1.3 (2.2.0 available)
+  home_widget 0.9.3 (0.10.0 available)
+  hooks 2.0.2 (2.2.0 available)
+  image_picker 1.2.3 (1.2.4 available)
+  image_picker_android 0.8.13+19 (0.8.13+25 available)
+  image_picker_ios 0.8.13+6 (0.8.13+12 available)
+  image_picker_platform_interface 2.11.1 (2.11.2 available)
+  intl 0.20.2 (0.20.3 available)
+  io 1.0.5 (1.1.0 available)
+  jni 1.0.0 (1.1.0 available)
+  jni_flutter 1.0.1 (1.0.4+1 available)
+  kakao_map_sdk 1.2.6 (1.3.1 available)
+  logger 2.7.0 (2.8.0 available)
+  matcher 0.12.19 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.0 (1.19.0 available)
+  mime 2.0.0 (2.1.0 available)
+  native_toolchain_c 0.19.1 (0.19.5 available)
+  nm 0.5.0 (0.6.0 available)
+  objective_c 9.4.1 (9.6.2 available)
+  package_config 2.2.0 (3.0.0 available)
+  path_provider_linux 2.2.1 (2.2.2 available)
+  path_provider_platform_interface 2.1.2 (2.1.3 available)
+  petitparser 7.0.2 (7.1.0 available)
+  platform 3.1.6 (3.2.0 available)
+  pool 1.5.2 (1.5.3 available)
+  process 5.0.5 (5.0.6 available)
+  pub_semver 2.2.0 (2.2.1 available)
+  pubspec_parse 1.5.0 (1.6.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  share_plus 13.3.0 (13.3.1 available)
+  shelf 1.4.2 (1.4.3 available)
+  source_gen 4.2.3 (4.3.1 available)
+  sqlite3 3.5.2 (3.7.1 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  stream_transform 2.1.1 (2.1.2 available)
+  test_api 0.7.11 (0.7.15 available)
+  timezone 0.11.1 (0.11.2 available)
+  url_launcher 6.3.2 (6.3.3 available)
+  url_launcher_android 6.3.32 (6.3.33 available)
+  url_launcher_ios 6.4.1 (6.4.2 available)
+  url_launcher_linux 3.2.2 (3.2.3 available)
+  url_launcher_macos 3.2.5 (3.2.6 available)
+  url_launcher_windows 3.1.5 (3.1.6 available)
+  vector_graphics_compiler 1.3.0 (1.3.2 available)
+  vector_math 2.2.0 (2.4.3 available)
+  vm_service 15.2.0 (15.4.0 available)
+  webdriver 3.1.0 (3.2.0 available)
+  win32 6.3.0 (6.4.0 available)
+  xml 7.0.1 (7.1.0 available)
+  yaml 3.1.3 (3.1.4 available)
+Got dependencies!
+80 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Running Gradle task 'assembleDebug'...                          
+WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): home_widget, kakao_map_sdk, play_integrity_channel, workmanager_android
+Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+
+Please check the changelogs of these plugins and upgrade to a version that supports Built-in Kotlin.
+If no such version exists, report the issue to the plugin. If necessary, here is a guide on filing 
+an issue against a plugin: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
+
+If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+Running Gradle task 'assembleDebug'...                             29.2s
+✓ Built build/app/outputs/flutter-apk/app-debug.apk
+Installing build/app/outputs/flutter-apk/app-debug.apk...        2,303ms
+D/nativeloader( 4339): Load /data/app/~~DKIEh8aiJZIZ3lJrZH07hQ==/com.easysubway.app-Gr9--ziS44v9NhIiGQc6ag==/base.apk!/lib/x86_64/libdartjni.so using ns clns-7 from class loader (caller=/data/app/~~DKIEh8aiJZIZ3lJrZH07hQ==/com.easysubway.app-Gr9--ziS44v9NhIiGQc6ag==/base.apk!classes10.dex): ok
+W/.easysubway.app( 4339): Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (unsupported,test-api, reflection, allowed)
+W/.easysubway.app( 4339): Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (unsupported, reflection, allowed)
+W/.easysubway.app( 4339): Accessing hidden field Landroid/view/accessibility/AccessibilityNodeInfo;->mChildNodeIds:Landroid/util/LongArray; (unsupported, reflection, allowed)
+W/.easysubway.app( 4339): Accessing hidden method Landroid/util/LongArray;->get(I)J (unsupported, reflection, allowed)
+D/FlutterRenderer( 4339): Width is zero. 0,0
+W/HWUI    ( 4339): Unknown dataspace 0
+I/WindowExtensionsImpl( 4339): Initializing Window Extensions, vendor API level=6, activity embedding enabled=true
+D/FlutterRenderer( 4339): Width is zero. 0,0
+D/FlutterJNI( 4339): Sending viewport metrics to the engine.
+I/Gralloc4( 4339): mapper 4.x is not supported
+W/HWUI    ( 4339): Failed to initialize 101010-2 format, error = EGL_SUCCESS
+I/.easysubway.app( 4339): Compiler allocated 5174KB to compile void android.view.ViewRootImpl.performTraversals()
+I/Choreographer( 4339): Skipped 52 frames!  The application may be doing too much work on its main thread.
+D/FlutterJNI( 4339): Sending viewport metrics to the engine.
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:37041/faeul2L6FQ0=/
+VMServiceFlutterDriver: Isolate found with number: 7366374618249167
+Unhandled exception:
+getIsolate: (-32000) Service connection disposed
+#0      new _OutstandingRequest (package:vm_service/src/vm_service.dart:278:34)
+#1      VmService._call.<anonymous closure> (package:vm_service/src/vm_service.dart:1960:25)
+#2      VmService._call (package:vm_service/src/vm_service.dart:1972:8)
+#3      VmService.getIsolate (package:vm_service/src/vm_service.dart:1025:7)
+#4      VMServiceFlutterDriver.connect.waitForIsolateToBeRunnable (package:flutter_driver/src/driver/vmservice_driver.dart:108:50)
+#5      VMServiceFlutterDriver.connect (package:flutter_driver/src/driver/vmservice_driver.dart:128:15)
+<asynchronous suspension>
+#6      integrationDriver (package:integration_test/integration_test_driver.dart:70:32)
+<asynchronous suspension>
+adb: device offline
+Failed to stop app
+adb uninstall failed: ProcessException: Process exited abnormally with exit code 1:
+adb: device offline
+  Command: /usr/local/lib/android/sdk/platform-tools/adb -s emulator-5554 uninstall com.easysubway.app
+Failed to uninstall app

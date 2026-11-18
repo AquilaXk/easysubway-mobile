@@ -1,0 +1,339 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../../../accessible_design.dart';
+import '../../../app/app_components.dart';
+import '../../../core/crashlytics/mobile_crash_reporting.dart';
+import '../../journey/domain/transfer_guide.dart';
+
+class DataSourceAttributionScreen extends StatefulWidget {
+  const DataSourceAttributionScreen({
+    super.key,
+    this.initialManifest,
+    this.initialInventory,
+    this.transferGuideRepository,
+  }) : assert(
+         (initialManifest == null) == (initialInventory == null),
+         'initialManifest and initialInventory must be provided together.',
+       );
+
+  final Map<String, Object?>? initialManifest;
+  final Map<String, Object?>? initialInventory;
+
+  /// 환승 이동 안내 문장의 출처 표기를 읽는다. null이면 그 카드를 더하지 않는다.
+  final TransferGuideRepository? transferGuideRepository;
+
+  @override
+  State<DataSourceAttributionScreen> createState() =>
+      _DataSourceAttributionScreenState();
+}
+
+class _DataSourceAttributionScreenState
+    extends State<DataSourceAttributionScreen> {
+  static const _mapManifestAsset =
+      'assets/datapacks/metro_map_pack/manifest.json';
+  static const _sourceInventoryAsset = 'assets/datapacks/source-inventory.json';
+
+  late final Future<
+    ({
+      Map<String, Object?> manifest,
+      Map<String, Object?> inventory,
+      List<TransferGuideSource> transferGuideSources,
+    })
+  >
+  _future = _load();
+
+  Future<List<TransferGuideSource>> _loadTransferGuideSources() async {
+    final repository = widget.transferGuideRepository;
+    if (repository == null) return const [];
+    try {
+      return await repository.loadSources();
+    } on Object catch (error, stackTrace) {
+      // 출처 카드 하나를 못 읽어도 나머지 출처 목록은 보여 준다.
+      unawaited(recordNonFatalError(error, stackTrace));
+      return const [];
+    }
+  }
+
+  Future<
+    ({
+      Map<String, Object?> manifest,
+      Map<String, Object?> inventory,
+      List<TransferGuideSource> transferGuideSources,
+    })
+  >
+  _load() async {
+    final transferGuideSources = await _loadTransferGuideSources();
+    final initialManifest = widget.initialManifest;
+    final initialInventory = widget.initialInventory;
+    if (initialManifest != null && initialInventory != null) {
+      return (
+        manifest: initialManifest,
+        inventory: initialInventory,
+        transferGuideSources: transferGuideSources,
+      );
+    }
+    final [manifestText, inventoryText] = await Future.wait([
+      rootBundle.loadString(_mapManifestAsset),
+      rootBundle.loadString(_sourceInventoryAsset),
+    ]);
+    return (
+      manifest: jsonDecode(manifestText) as Map<String, Object?>,
+      inventory: jsonDecode(inventoryText) as Map<String, Object?>,
+      transferGuideSources: transferGuideSources,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      key: const Key('dataSourceAttributionScreen'),
+      appBar: AppBar(
+        title: const Text('데이터 및 지도 출처'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
+      ),
+      body: SafeArea(
+        child:
+            FutureBuilder<
+              ({
+                Map<String, Object?> manifest,
+                Map<String, Object?> inventory,
+                List<TransferGuideSource> transferGuideSources,
+              })
+            >(
+              future: _future,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return ListView(
+                    padding: mainPagePadding,
+                    children: const [
+                      AppCard(
+                        child: AppInfoRow(
+                          icon: Icons.error_outline,
+                          iconColor: EasySubwayAccessibleColors.amber,
+                          title: '자료 제공 정보를 불러오지 못했어요',
+                          subtitle: '앱을 다시 열고, 계속 보이지 않으면 고객지원에 알려 주세요.',
+                        ),
+                      ),
+                    ],
+                  );
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final manifest = snapshot.data!.manifest;
+                final inventory = snapshot.data!.inventory;
+                final maps = (manifest['maps'] as List)
+                    .cast<Map<String, Object?>>();
+                final sources = (inventory['sources'] as List)
+                    .cast<Map<String, Object?>>()
+                    .where(isListedDataSource)
+                    .toList(growable: false);
+                return ListView(
+                  padding: mainPagePadding,
+                  children: [
+                    const AppCard(
+                      child: AppInfoRow(
+                        icon: Icons.fact_check_outlined,
+                        iconColor: EasySubwayAccessibleColors.amber,
+                        title: '자료 안내',
+                        subtitle: '지도와 길·시설 안내는 공식·공개 자료를 바탕으로 해요.',
+                      ),
+                    ),
+                    const AppSectionTitle(title: '노선도'),
+                    for (final map in maps) _AttributionCard.map(map),
+                    const AppSectionTitle(title: '길·시설 안내에 쓰는 자료'),
+                    for (final source in sources)
+                      _AttributionCard.source(source),
+                    for (final source in snapshot.data!.transferGuideSources)
+                      _AttributionCard.transferGuide(source),
+                  ],
+                );
+              },
+            ),
+      ),
+    );
+  }
+}
+
+/// 사용자 출처 목록에 올리는 자료인지(내부 수집 검사용 자료는 뺀다).
+@visibleForTesting
+bool isListedDataSource(Map<String, Object?> source) =>
+    !source.containsKey('rawSnapshotAdmission') &&
+    !_isInternalCanarySource(source);
+
+/// CI canary 원천은 데이터 수집 검사용 내부 원천이라 사용자 출처 목록에 넣지
+/// 않는다(#444 리뷰 F1). source-inventory에는 canary를 뜻하는 구조 필드가
+/// 없다. requiredForProductionPack·productionUseAllowed·capabilities는 서비스용
+/// 원천(빠른하차 등)과 값이 같아 구분하지 못한다. 그래서 안정 식별자인 `id`의
+/// 마지막 토큰 `canary`로 판정한다. 표시 이름은 보지 않는다.
+bool _isInternalCanarySource(Map<String, Object?> source) {
+  final id = source['id'];
+  return id is String && id.split('-').last == 'canary';
+}
+
+class _AttributionCard extends StatelessWidget {
+  const _AttributionCard._({
+    required this.title,
+    required this.subtitle,
+    required this.rows,
+  });
+
+  factory _AttributionCard.map(Map<String, Object?> map) {
+    final license = (map['license'] as Map<String, Object?>?) ?? const {};
+    return _AttributionCard._(
+      title: '${_text(map['name_ko'], '지도')} 노선도',
+      subtitle: '쉬운 지하철이 직접 그린 노선도예요.',
+      rows: [
+        // 출처 표기가 필요한 자료만 제작자와 이용 조건을 밝힌다.
+        if (license['attributionRequired'] == true)
+          ..._rowIfPresent(
+            '출처 표기',
+            [
+              _text(license['authors']),
+              _text(license['name']),
+            ].where((part) => part.isNotEmpty).join(', '),
+          ),
+        ..._rowIfPresent('기준일', _date(license['date'])),
+      ],
+    );
+  }
+
+  factory _AttributionCard.source(Map<String, Object?> source) {
+    final license = (source['license'] as Map<String, Object?>?) ?? const {};
+    final provider = _text(source['provider'], '');
+    final owner = _text(source['owner'], '');
+    return _AttributionCard._(
+      title: _text(source['userDisplayName'], '자료'),
+      subtitle: [
+        provider,
+        if (owner.isNotEmpty && owner != provider) owner,
+      ].where((name) => name.isNotEmpty).join(' / '),
+      rows: [
+        ..._rowIfPresent('이용 조건', _text(license['name'], '')),
+        ..._rowIfPresent('출처 표기', _text(license['attribution'], '')),
+        ..._rowIfPresent('자료 받은 날', _date(source['retrievedAt'])),
+        ..._rowIfPresent('자료 확인일', _date(source['observedDataUpdatedAt'])),
+        ..._rowIfPresent('안내 페이지', _text(license['evidenceUrl'], '')),
+      ],
+    );
+  }
+
+  factory _AttributionCard.transferGuide(TransferGuideSource source) =>
+      _AttributionCard._(
+        title: source.datasetLabel,
+        subtitle: '',
+        rows: [..._rowIfPresent('출처 표기', source.attribution)],
+      );
+
+  /// 값이 없는 항목은 "정보 없음" 같은 말을 띄우지 않고 숨긴다.
+  static List<(String, String)> _rowIfPresent(String label, String value) =>
+      value.isEmpty ? const [] : [(label, value)];
+
+  /// `2026-07-12T00:00:00+00:00` 같은 값을 날짜만 남긴다.
+  static String _date(Object? value) {
+    final text = _text(value, '');
+    final match = RegExp(r'^\d{4}-\d{2}-\d{2}').firstMatch(text);
+    return match?.group(0) ?? text;
+  }
+
+  final String title;
+  final String subtitle;
+  final List<(String, String)> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    final semanticLabel = [
+      title,
+      if (subtitle.isNotEmpty) subtitle,
+      for (final row in rows) '${row.$1}: ${row.$2}',
+    ].join(', ');
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Semantics(
+        label: semanticLabel,
+        child: AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: EasySubwayFontWeight.regular,
+                  color: EasySubwayAccessibleColors.text,
+                  height: 1.25,
+                ),
+              ),
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: EasySubwayAccessibleColors.mutedText,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              for (final row in rows)
+                _AttributionRow(label: row.$1, value: row.$2),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _text(Object? value, [String fallback = '']) {
+    if (value is List) {
+      final joined = value
+          .whereType<Object>()
+          .map((item) => '$item')
+          .join(', ');
+      return joined.isEmpty ? fallback : joined;
+    }
+    final text = value?.toString().trim() ?? '';
+    return text.isEmpty ? fallback : text;
+  }
+}
+
+class _AttributionRow extends StatelessWidget {
+  const _AttributionRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              fontWeight: EasySubwayFontWeight.regular,
+              color: EasySubwayAccessibleColors.secondaryText,
+              height: 1.25,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: EasySubwayAccessibleColors.text,
+              height: 1.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

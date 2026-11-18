@@ -1,0 +1,156 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:easysubway_mobile/features/facility_report/data/facility_report_photo_upload_intent.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('report-status golden fixture를 FacilityReportResult가 decode한다', () {
+    final decoded =
+        jsonDecode(
+              File(
+                'test/fixtures/contracts/api/report-status.ok.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+
+    final data = decoded['data']! as Map<String, Object?>;
+
+    final result = FacilityReportResult.fromJson(data);
+
+    expect(result.id, '__REPORT_ID__');
+    expect(result.stationId, 'station-sangnoksu');
+    expect(result.facilityId, 'facility-sangnoksu-elevator-1');
+    expect(result.reportType, 'BROKEN');
+    expect(result.description, '엘리베이터 문이 열리지 않습니다.');
+    expect(result.status, 'SUBMITTED');
+    expect(result.createdAt, '__CREATED_AT__');
+    expect(result.publicReceiptCode, '__PUBLIC_RECEIPT_CODE__');
+  });
+
+  test('report upload intent golden fixture를 mobile parser가 decode한다', () {
+    final decoded =
+        jsonDecode(
+              File(
+                'test/fixtures/contracts/api/report-upload-intent.created.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+
+    final intent = FacilityReportPhotoUploadIntent.fromJson(
+      decoded,
+      errorMessage: 'fixture parse failed',
+    );
+
+    expect(intent.objectKey, 'reports/__REPORT_UPLOAD_OBJECT_KEY__.jpg');
+    expect(intent.uploadUrl, '/api/v1/report-uploads/__REPORT_UPLOAD_ID__');
+    expect(intent.uploadMethod, 'PUT');
+    expect(intent.uploadHeaders['content-type'], 'image/jpeg');
+    expect(
+      intent.uploadHeaders['x-easysubway-upload-sha256'],
+      '2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c',
+    );
+    expect(intent.uploadHeaders['x-easysubway-upload-size'], '11');
+  });
+
+  test('report upload intent parser는 malformed response를 fail closed 한다', () {
+    for (final decoded in <Object?>[
+      null,
+      const <String, Object?>{'success': true, 'data': 'invalid'},
+    ]) {
+      expect(
+        () => FacilityReportPhotoUploadIntent.fromJson(
+          decoded,
+          errorMessage: 'fixture parse failed',
+        ),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            'fixture parse failed',
+          ),
+        ),
+      );
+    }
+
+    expect(
+      () => FacilityReportPhotoUploadIntent.fromJson(const <String, Object?>{
+        'success': true,
+        'data': <String, Object?>{},
+      }, errorMessage: 'fixture parse failed'),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          'Missing required report field: objectKey',
+        ),
+      ),
+    );
+  });
+
+  test('uploadUri는 HTTPS와 루프백 HTTP만 허용하고 원격 HTTP를 거부한다', () {
+    final baseUri = Uri.parse('https://api.example.com');
+
+    expect(
+      const FacilityReportPhotoUploadIntent(
+        objectKey: 'k',
+        uploadUrl: 'https://upload.example.com/object?sig=1',
+        uploadMethod: 'PUT',
+      ).uploadUri(baseUri),
+      Uri.parse('https://upload.example.com/object?sig=1'),
+    );
+    expect(
+      const FacilityReportPhotoUploadIntent(
+        objectKey: 'k',
+        uploadUrl: '/upload/object',
+        uploadMethod: 'PUT',
+      ).uploadUri(baseUri),
+      Uri.parse('https://api.example.com/upload/object'),
+    );
+    for (final loopbackUrl in const [
+      'http://localhost:8080/upload',
+      'http://127.0.0.1:8080/upload',
+      'http://[::1]:8080/upload',
+    ]) {
+      expect(
+        FacilityReportPhotoUploadIntent(
+          objectKey: 'k',
+          uploadUrl: loopbackUrl,
+          uploadMethod: 'PUT',
+        ).uploadUri(baseUri),
+        Uri.parse(loopbackUrl),
+      );
+    }
+    for (final rejectedUrl in const [
+      'http://upload.example.com/object',
+      'https://user:pass@upload.example.com/object',
+      '//upload.example.com/object',
+      'http://[::1',
+    ]) {
+      expect(
+        () => FacilityReportPhotoUploadIntent(
+          objectKey: 'k',
+          uploadUrl: rejectedUrl,
+          uploadMethod: 'PUT',
+        ).uploadUri(baseUri),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => '$error',
+            'toString',
+            '제보를 보내지 못했어요.',
+          ),
+        ),
+      );
+    }
+    expect(
+      () => const FacilityReportPhotoUploadIntent(
+        objectKey: 'k',
+        uploadUrl: 'http://127.0.0.1:8080/upload',
+        uploadMethod: 'PUT',
+      ).uploadUri(baseUri, isReleaseMode: true),
+      throwsA(isA<FacilityReportException>()),
+    );
+  });
+}

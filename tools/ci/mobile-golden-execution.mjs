@@ -1,0 +1,511 @@
+#!/usr/bin/env node
+
+import {
+  lstatSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  writeFileSync,
+} from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+import { parseJsonReport } from "./mobile-host-test-parity.mjs";
+
+const EXPECTED_RUNNER_OS = "macOS";
+const EXPECTED_FLUTTER_VERSION = "3.44.0";
+const GOLDEN_TEST_ROOT = "apps/mobile/test/";
+const FAILURE_SEGMENT = "/failures/";
+const TEST_RESULTS = new Set(["success", "failure", "error"]);
+
+const compare = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
+
+function fail(message) {
+  throw new Error(`mobile-golden-execution: ${message}`);
+}
+
+function object(value, label) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    fail(`${label} must be an object`);
+  }
+  return value;
+}
+
+function normalizeRepositoryPath(value, label) {
+  if (typeof value !== "string" || value.length === 0) {
+    fail(`${label} must be a non-empty string`);
+  }
+  if (/[\u0000-\u001f\u007f]/u.test(value)) {
+    fail(`${label} contains control characters`);
+  }
+  const normalized = value.replaceAll("\\", "/");
+  if (normalized.startsWith("/") || /^[A-Za-z]:\//u.test(normalized)) {
+    fail(`${label} must be repository-relative`);
+  }
+  const segments = normalized.split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    fail(`${label} contains traversal or empty segments`);
+  }
+  return segments.join("/");
+}
+
+function safeIdentity(value, label) {
+  if (typeof value !== "string" || !/^[A-Za-z0-9._-]+$/u.test(value)) {
+    fail(`${label} environment identity is invalid`);
+  }
+  return value;
+}
+
+function validateEnvironment(input) {
+  const environment = object(input, "environment");
+  if (environment.runnerOs !== EXPECTED_RUNNER_OS) {
+    fail(`runner must be ${EXPECTED_RUNNER_OS}`);
+  }
+  if (environment.flutterVersion !== EXPECTED_FLUTTER_VERSION) {
+    fail(`Flutter must be ${EXPECTED_FLUTTER_VERSION}`);
+  }
+  if (typeof environment.headSha !== "string" || !/^[0-9a-f]{40}$/u.test(environment.headSha)) {
+    fail("headSha environment identity is invalid");
+  }
+  if (!/^v24\./u.test(process.version)) {
+    fail("Node 24 is required");
+  }
+  return {
+    runnerOs: environment.runnerOs,
+    imageOs: safeIdentity(environment.imageOs, "imageOs"),
+    imageVersion: safeIdentity(environment.imageVersion, "imageVersion"),
+    flutterVersion: environment.flutterVersion,
+    nodeVersion: process.version,
+    headSha: environment.headSha,
+  };
+}
+
+function validateInventory(input) {
+  const inventory = object(input, "inventory");
+  if (inventory.schemaVersion !== 1 || inventory.artifactKind !== "mobile-golden-parity-v1") {
+    fail("unsupported golden parity inventory");
+  }
+  if (inventory.outcome !== "PASS" || !Array.isArray(inventory.findings)) {
+    fail("golden parity did not pass");
+  }
+  if (inventory.findings.length > 0) {
+    fail("golden parity contains findings");
+  }
+  if (!Array.isArray(inventory.tests) || inventory.tests.length === 0) {
+    fail("zero golden tests discovered");
+  }
+  if (!Array.isArray(inventory.references) || inventory.references.length === 0) {
+    fail("zero golden references discovered");
+  }
+  if (!Array.isArray(inventory.assets) || inventory.assets.length === 0) {
+    fail("zero golden assets discovered");
+  }
+
+  const tests = inventory.tests.map((entry) =>
+    normalizeRepositoryPath(entry, "golden test path"),
+  );
+  if (new Set(tests).size !== tests.length) {
+    fail("duplicate golden test path");
+  }
+  for (const test of tests) {
+    if (!test.startsWith(GOLDEN_TEST_ROOT) || !test.endsWith("_test.dart")) {
+      fail("golden test is outside the approved test root");
+    }
+  }
+
+  const assets = inventory.assets.map((entry) =>
+    normalizeRepositoryPath(entry, "golden asset path"),
+  );
+  const testSet = new Set(tests);
+  const assetSet = new Set(assets);
+  for (const rawReference of inventory.references) {
+    const reference = object(rawReference, "golden reference");
+    const test = normalizeRepositoryPath(reference.test, "golden reference test");
+    const asset = normalizeRepositoryPath(reference.asset, "golden reference asset");
+    if (!testSet.has(test) || !assetSet.has(asset)) {
+      fail("golden reference is outside the parity inventory");
+    }
+  }
+  return {
+    tests: tests.sort(compare),
+    referenceCount: inventory.references.length,
+    assetCount: assets.length,
+  };
+}
+
+function requireSingle(events, type) {
+  const matches = events.filter((event) => event.type === type);
+  if (matches.length !== 1) {
+    fail(`expected exactly one ${type} event`);
+  }
+  return matches[0];
+}
+
+function normalizeSuitePath(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    fail("suite path is invalid");
+  }
+  let normalized = value.replaceAll("\\", "/");
+  if (normalized.startsWith("file:")) {
+    try {
+      normalized = decodeURIComponent(new URL(normalized).pathname);
+    } catch {
+      fail("suite file URL is invalid");
+    }
+  }
+  const packageMarker = "/apps/mobile/";
+  const markerIndex = normalized.lastIndexOf(packageMarker);
+  if (markerIndex !== -1) {
+    normalized = normalized.slice(markerIndex + 1);
+  } else if (normalized.startsWith("apps/mobile/")) {
+    // Already repository-relative.
+  } else {
+    normalized = normalized.replace(/^\.\//u, "");
+    if (normalized.startsWith("test/")) {
+      normalized = `apps/mobile/${normalized}`;
+    }
+  }
+  return normalizeRepositoryPath(normalized, "suite path");
+}
+
+function analyzeReport(events, expectedTests) {
+  if (!Array.isArray(events) || events.length === 0) {
+    fail("zero reporter events");
+  }
+  const start = requireSingle(events, "start");
+  if (events[0] !== start || typeof start.protocolVersion !== "string") {
+    fail("start event must be first and include protocolVersion");
+  }
+  const allSuites = requireSingle(events, "allSuites");
+  const done = requireSingle(events, "done");
+  if (events.at(-1) !== done) {
+    fail("done event must be terminal");
+  }
+  if (!Number.isInteger(allSuites.count) || allSuites.count <= 0) {
+    fail("allSuites count must be positive");
+  }
+
+  const expectedSet = new Set(expectedTests);
+  const suitesById = new Map();
+  for (const event of events.filter((entry) => entry.type === "suite")) {
+    if (!event.suite || !Number.isInteger(event.suite.id) || event.suite.id < 0) {
+      fail("suite event has an invalid ID");
+    }
+    const suitePath = normalizeSuitePath(event.suite.path);
+    if (suitesById.has(event.suite.id)) {
+      fail("duplicate suite ID");
+    }
+    if (!expectedSet.has(suitePath)) {
+      fail("unexpected suite outside the golden inventory");
+    }
+    suitesById.set(event.suite.id, suitePath);
+  }
+  if (suitesById.size !== allSuites.count) {
+    fail("allSuites count does not match emitted suites");
+  }
+  const emittedPaths = new Set(suitesById.values());
+  for (const expected of expectedTests) {
+    if (!emittedPaths.has(expected)) {
+      fail("missing golden suite");
+    }
+  }
+
+  const testsById = new Map();
+  for (const event of events.filter((entry) => entry.type === "testStart")) {
+    if (
+      !event.test ||
+      !Number.isInteger(event.test.id) ||
+      event.test.id < 0 ||
+      !Number.isInteger(event.test.suiteID) ||
+      !suitesById.has(event.test.suiteID)
+    ) {
+      fail("testStart has invalid IDs");
+    }
+    if (testsById.has(event.test.id)) {
+      fail("duplicate test ID");
+    }
+    testsById.set(event.test.id, {
+      suitePath: suitesById.get(event.test.suiteID),
+      done: null,
+    });
+  }
+  for (const event of events.filter((entry) => entry.type === "testDone")) {
+    const testState = testsById.get(event.testID);
+    if (!testState || testState.done) {
+      fail("testDone references an unknown or completed test");
+    }
+    if (
+      !TEST_RESULTS.has(event.result) ||
+      typeof event.hidden !== "boolean" ||
+      typeof event.skipped !== "boolean"
+    ) {
+      fail("testDone is malformed");
+    }
+    testState.done = event;
+  }
+  for (const state of testsById.values()) {
+    if (!state.done) fail("test has no terminal testDone event");
+  }
+
+  return {
+    protocolVersion: start.protocolVersion,
+    runnerVersion: start.runnerVersion ?? null,
+    doneSuccess: done.success,
+    errorCount: events.filter((entry) => entry.type === "error").length,
+    suitesById,
+    testsById,
+  };
+}
+
+function visibleBySuite(analysis, suitePath) {
+  return [...analysis.testsById.values()]
+    .filter((state) => state.suitePath === suitePath)
+    .map((state) => state.done)
+    .filter((event) => !event.hidden);
+}
+
+export function verifyGoldenExecution({
+  inventory: rawInventory,
+  events,
+  testExitCode,
+  environment: rawEnvironment,
+}) {
+  const inventory = validateInventory(rawInventory);
+  const environment = validateEnvironment(rawEnvironment);
+  if (!Number.isInteger(testExitCode) || testExitCode !== 0) {
+    fail("golden runner exit must be zero");
+  }
+  const analysis = analyzeReport(events, inventory.tests);
+  if (analysis.doneSuccess !== true || analysis.errorCount > 0) {
+    fail("golden runner did not complete successfully");
+  }
+
+  let nonSkippedComparisonCount = 0;
+  for (const testPath of inventory.tests) {
+    const visible = visibleBySuite(analysis, testPath);
+    if (visible.length === 0) fail("golden suite has no visible terminal comparisons");
+    const skipped = visible.filter((event) => event.skipped);
+    const executed = visible.filter((event) => !event.skipped);
+    if (executed.length === 0) fail("golden suite has all skipped comparisons");
+    if (skipped.length > 0) fail("golden suite contains a skipped comparison");
+    if (executed.some((event) => event.result !== "success")) {
+      fail("golden comparison failed");
+    }
+    nonSkippedComparisonCount += executed.length;
+  }
+  if (nonSkippedComparisonCount !== inventory.referenceCount) {
+    fail("executed comparison count does not match golden references");
+  }
+
+  return {
+    schemaVersion: 1,
+    artifactKind: "mobile-golden-execution-v1",
+    outcome: "PASS",
+    environment,
+    protocolVersion: analysis.protocolVersion,
+    runnerVersion: analysis.runnerVersion,
+    discoveredReferenceCount: inventory.referenceCount,
+    discoveredAssetCount: inventory.assetCount,
+    executedSuiteCount: inventory.tests.length,
+    nonSkippedComparisonCount,
+    executedTests: inventory.tests,
+  };
+}
+
+function validateFailureArtifacts(input) {
+  if (!Array.isArray(input) || input.length === 0) {
+    fail("mutation produced zero failure PNG artifacts");
+  }
+  const artifacts = input.map((entry) =>
+    normalizeRepositoryPath(entry, "failure artifact path"),
+  );
+  for (const artifact of artifacts) {
+    if (
+      !artifact.startsWith(GOLDEN_TEST_ROOT) ||
+      !artifact.includes(FAILURE_SEGMENT) ||
+      !artifact.endsWith(".png")
+    ) {
+      fail("failure artifact path is outside the golden failure directory");
+    }
+  }
+  return [...new Set(artifacts)].sort(compare);
+}
+
+export function verifyGoldenMutation({
+  inventory: rawInventory,
+  events,
+  testExitCode,
+  failureArtifacts: rawFailureArtifacts,
+  environment: rawEnvironment,
+}) {
+  const inventory = validateInventory(rawInventory);
+  const environment = validateEnvironment(rawEnvironment);
+  if (!Number.isInteger(testExitCode) || testExitCode === 0) {
+    fail("mutation unexpectedly succeeded; expected a nonzero comparison exit");
+  }
+  const analysis = analyzeReport(events, inventory.tests);
+  const visible = [...analysis.testsById.values()]
+    .map((state) => state.done)
+    .filter((event) => !event.hidden);
+  if (visible.length === 0 || visible.some((event) => event.skipped)) {
+    fail("mutation comparison was missing or skipped");
+  }
+  if (
+    analysis.doneSuccess !== false ||
+    !visible.some((event) => event.result === "failure" || event.result === "error")
+  ) {
+    fail("mutation did not produce a terminal comparison failure");
+  }
+  const failureArtifacts = validateFailureArtifacts(rawFailureArtifacts);
+  return {
+    schemaVersion: 1,
+    artifactKind: "mobile-golden-mutation-v1",
+    outcome: "EXPECTED_MISMATCH",
+    environment,
+    protocolVersion: analysis.protocolVersion,
+    runnerVersion: analysis.runnerVersion,
+    failureArtifacts,
+  };
+}
+
+export function readFailureArtifacts(repositoryRoot, failuresRoot) {
+  const normalizedRoot = normalizeRepositoryPath(failuresRoot, "failures root");
+  if (
+    !normalizedRoot.startsWith(GOLDEN_TEST_ROOT) ||
+    !normalizedRoot.endsWith("/failures")
+  ) {
+    fail("failures root is outside a golden failure directory");
+  }
+  const absoluteRoot = path.join(repositoryRoot, ...normalizedRoot.split("/"));
+  let rootStatus;
+  try {
+    rootStatus = lstatSync(absoluteRoot);
+  } catch {
+    return [];
+  }
+  if (!rootStatus.isDirectory() || rootStatus.isSymbolicLink()) {
+    fail("failures root must be a regular directory");
+  }
+  const artifacts = [];
+  const visit = (absoluteDirectory, relativeDirectory) => {
+    for (const entry of readdirSync(absoluteDirectory).sort(compare)) {
+      const absolute = path.join(absoluteDirectory, entry);
+      const relative = `${relativeDirectory}/${entry}`;
+      const status = lstatSync(absolute);
+      if (status.isSymbolicLink()) fail("failure artifacts cannot be symlinks");
+      if (status.isDirectory()) {
+        visit(absolute, relative);
+      } else if (status.isFile() && relative.endsWith(".png")) {
+        artifacts.push(relative);
+      }
+    }
+  };
+  visit(absoluteRoot, normalizedRoot);
+  return artifacts.sort(compare);
+}
+
+function parseArguments(argv) {
+  const [command, ...tokens] = argv;
+  if (command !== "verify" && command !== "verify-mutation") {
+    fail("command must be verify or verify-mutation");
+  }
+  const values = { command };
+  for (let index = 0; index < tokens.length; index += 2) {
+    const key = tokens[index];
+    const value = tokens[index + 1];
+    if (!key?.startsWith("--") || value === undefined || value.startsWith("--")) {
+      fail("arguments must be --key value pairs");
+    }
+    values[key.slice(2)] = value;
+  }
+  const required = [
+    "inventory",
+    "report",
+    "test-exit-code",
+    "receipt",
+    "runner-os",
+    "image-os",
+    "image-version",
+    "flutter-version-file",
+    "head-sha",
+  ];
+  if (command === "verify-mutation") required.push("failures-root");
+  for (const key of required) {
+    if (!(key in values)) fail(`missing --${key}`);
+  }
+  return values;
+}
+
+function readJson(filePath, label) {
+  try {
+    return JSON.parse(readFileSync(filePath, "utf8"));
+  } catch {
+    fail(`cannot read ${label}`);
+  }
+}
+
+function readText(filePath, label) {
+  try {
+    return readFileSync(filePath, "utf8");
+  } catch {
+    fail(`cannot read ${label}`);
+  }
+}
+
+function writeReceipt(filePath, value) {
+  const resolved = path.resolve(filePath);
+  mkdirSync(path.dirname(resolved), { recursive: true });
+  writeFileSync(resolved, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+}
+
+function main() {
+  let args;
+  try {
+    args = parseArguments(process.argv.slice(2));
+    const flutterIdentity = readJson(
+      args["flutter-version-file"],
+      "Flutter version identity",
+    );
+    const input = {
+      inventory: readJson(args.inventory, "golden inventory"),
+      events: parseJsonReport(readText(args.report, "golden reporter output")),
+      testExitCode: Number(args["test-exit-code"]),
+      environment: {
+        runnerOs: args["runner-os"],
+        imageOs: args["image-os"],
+        imageVersion: args["image-version"],
+        flutterVersion: flutterIdentity.frameworkVersion,
+        headSha: args["head-sha"],
+      },
+    };
+    const receipt =
+      args.command === "verify"
+        ? verifyGoldenExecution(input)
+        : verifyGoldenMutation({
+            ...input,
+            failureArtifacts: readFailureArtifacts(process.cwd(), args["failures-root"]),
+          });
+    writeReceipt(args.receipt, receipt);
+    process.stdout.write(`${receipt.artifactKind}: ${receipt.outcome}\n`);
+  } catch (error) {
+    if (args?.receipt) {
+      const safeError =
+        error instanceof Error && error.message.startsWith("mobile-golden-execution:")
+          ? error.message
+          : "mobile-golden-execution: unexpected verifier failure";
+      writeReceipt(args.receipt, {
+        schemaVersion: 1,
+        artifactKind: "mobile-golden-execution-error-v1",
+        outcome: "FAIL",
+        error: safeError,
+      });
+    }
+    process.stderr.write(`${error.message}\n`);
+    process.exitCode = 1;
+  }
+}
+
+const invokedPath = process.argv[1]
+  ? pathToFileURL(path.resolve(process.argv[1])).href
+  : null;
+if (invokedPath === import.meta.url) main();

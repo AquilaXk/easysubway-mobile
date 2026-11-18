@@ -1,0 +1,803 @@
+import 'package:drift/drift.dart'
+    show ApplyInterceptor, QueryExecutor, QueryInterceptor;
+import 'package:drift/native.dart';
+import 'package:easysubway_mobile/app/app_dependencies.dart';
+import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
+import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('로컬 역 검색은 역명·역 suffix·영문명만으로 찾는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    for (final query in ['상록수', '상록수역', 'Sangnoksu']) {
+      final results = await repository.searchStations(query);
+
+      expect(results, hasLength(1), reason: query);
+      expect(results.single.id, 'station-sangnoksu', reason: query);
+      expect(results.single.nameKo, '상록수', reason: query);
+      expect(results.single.lines.single.stationCode, '448', reason: query);
+    }
+  });
+
+  test('로컬 역 검색은 초성 질의로 역명 접두를 찾는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement(
+      "INSERT INTO stations "
+      "(id, name_ko, name_en, name_sub, normalized_name, region, "
+      "data_quality_level, data_source_type) "
+      "VALUES "
+      "('station-surisan', '수리산', 'Surisan', '', '수리산', "
+      "'수도권', 'LEVEL_1', 'OFFICIAL_FILE'), "
+      "('station-sanbon', '산본', 'Sanbon', '', '산본', "
+      "'수도권', 'LEVEL_1', 'OFFICIAL_FILE'), "
+      "('station-seomyeon', '서면', 'Seomyeon', '', '서면', "
+      "'부산', 'LEVEL_1', 'OFFICIAL_FILE')",
+    );
+    final repository = DriftStationRepository(database: database);
+
+    final byS = await repository.searchStations('ㅅ');
+    expect(byS.map((s) => s.nameKo), containsAll(['수리산', '산본', '상록수']));
+
+    final bySb = await repository.searchStations('ㅅㅂ');
+    expect(bySb.map((s) => s.nameKo), contains('산본'));
+    expect(bySb.map((s) => s.nameKo), isNot(contains('수리산')));
+
+    final busanOnly = await repository.searchStations('ㅅ', region: '부산');
+    expect(busanOnly.map((s) => s.nameKo), contains('서면'));
+    expect(busanOnly.map((s) => s.region), everyElement('부산'));
+  });
+
+  test('로컬 역 검색은 호선명·역번호만으로는 결과를 내지 않는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    for (final query in ['448', '4호선', '4호선 상록수', '수인분당선']) {
+      final results = await repository.searchStations(query);
+
+      expect(results, isEmpty, reason: query);
+    }
+  });
+
+  test('로컬 역 검색은 부역명(name_sub)으로도 역을 찾는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement(
+      "INSERT INTO stations "
+      "(id, name_ko, name_en, name_sub, normalized_name, region, "
+      "data_quality_level, data_source_type) "
+      "VALUES ('station-gongneung', '공릉', '', '서울과학기술대', '공릉', "
+      "'수도권', 'LEVEL_1', 'OFFICIAL_FILE')",
+    );
+    final repository = DriftStationRepository(database: database);
+
+    final results = await repository.searchStations('서울과학기술대');
+
+    expect(results, hasLength(1));
+    expect(results.single.id, 'station-gongneung');
+    expect(results.single.nameKo, '공릉');
+  });
+
+  test('로컬 역 검색은 빈 값과 결과 없는 검색어를 빈 목록으로 반환한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    for (final query in ['', '   ', '없는역']) {
+      final results = await repository.searchStations(query);
+
+      expect(results, isEmpty, reason: query);
+    }
+  });
+
+  test('로컬 역 검색은 warm 전후·중복 warm에서 결과 집합과 순서가 같다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement(
+      "INSERT INTO stations "
+      "(id, name_ko, name_en, name_sub, normalized_name, region, "
+      "data_quality_level, data_source_type) "
+      "VALUES "
+      "('station-surisan', '수리산', 'Surisan', '', '수리산', "
+      "'수도권', 'LEVEL_1', 'OFFICIAL_FILE'), "
+      "('station-sanbon', '산본', 'Sanbon', '', '산본', "
+      "'수도권', 'LEVEL_1', 'OFFICIAL_FILE')",
+    );
+    final repository = DriftStationRepository(database: database);
+
+    Future<List<String>> idsFor(String query) async {
+      final results = await repository.searchStations(query);
+      return results.map((station) => station.id).toList(growable: false);
+    }
+
+    final beforeWarm = await idsFor('ㅅ');
+    await Future.wait([
+      repository.warmSearchCache(),
+      repository.warmSearchCache(),
+    ]);
+    final afterWarm = await idsFor('ㅅ');
+    final afterSecondSearch = await idsFor('ㅅ');
+
+    expect(afterWarm, beforeWarm);
+    expect(afterSecondSearch, beforeWarm);
+    expect(await idsFor('상'), await idsFor('상'));
+  });
+
+  test('로컬 역 검색은 중간 문자열(substring) 매칭을 유지한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement(
+      "INSERT INTO stations "
+      "(id, name_ko, name_en, name_sub, normalized_name, region, "
+      "data_quality_level, data_source_type) "
+      "VALUES "
+      "('station-mid-sangnok', '테스트상록중앙', 'MidSangnok', '', "
+      "'테스트상록중앙', '수도권', 'LEVEL_1', 'OFFICIAL_FILE')",
+    );
+    final repository = DriftStationRepository(database: database);
+
+    final results = await repository.searchStations('상록');
+    expect(
+      results.map((station) => station.id),
+      contains('station-mid-sangnok'),
+    );
+    expect(results.map((station) => station.id), contains('station-sangnoksu'));
+  });
+
+  test('로컬 역 검색은 결과 상한 40과 완전일치 예외를 지킨다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final buffer = StringBuffer();
+    for (var i = 0; i < 50; i++) {
+      if (i > 0) {
+        buffer.write(', ');
+      }
+      final id = 'station-bulk-$i';
+      final name = '상테스트$i';
+      buffer.write(
+        "('$id', '$name', 'Sang$i', '', '$name', "
+        "'수도권', 'LEVEL_1', 'OFFICIAL_FILE')",
+      );
+    }
+    await database.customStatement(
+      "INSERT INTO stations "
+      "(id, name_ko, name_en, name_sub, normalized_name, region, "
+      "data_quality_level, data_source_type) "
+      "VALUES ${buffer.toString()}",
+    );
+    final repository = DriftStationRepository(database: database);
+
+    final prefixResults = await repository.searchStations('상');
+    expect(prefixResults.length, lessThanOrEqualTo(40));
+
+    // 동명 완전일치가 40을 넘어도 잘리지 않는다.
+    final exactBuffer = StringBuffer();
+    for (var i = 0; i < 45; i++) {
+      if (i > 0) {
+        exactBuffer.write(', ');
+      }
+      exactBuffer.write(
+        "('station-exact-$i', '동일역명', 'Same$i', '', '동일역명', "
+        "'수도권', 'LEVEL_1', 'OFFICIAL_FILE')",
+      );
+    }
+    await database.customStatement(
+      "INSERT INTO stations "
+      "(id, name_ko, name_en, name_sub, normalized_name, region, "
+      "data_quality_level, data_source_type) "
+      "VALUES ${exactBuffer.toString()}",
+    );
+    repository.invalidateStationSummaryCache();
+    final exactResults = await repository.searchStations('동일역명');
+    expect(exactResults.length, greaterThanOrEqualTo(45));
+    expect(exactResults.every((station) => station.nameKo == '동일역명'), isTrue);
+  });
+
+  test('노선 필터 검색과 노선 목록은 로컬 라인 매핑을 사용한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final lines = await repository.listLines();
+    final line4 = lines.singleWhere((line) => line.id == 'seoul-4');
+
+    expect(line4.name, '수도권 4호선');
+    expect(line4.lineCode, '4');
+    expect(line4.region, '수도권');
+    expect(line4.active, isTrue);
+
+    expect(
+      await repository.searchStationsOnLine('상록수', 'seoul-4'),
+      hasLength(1),
+    );
+    expect(await repository.searchStationsOnLine('', 'seoul-4'), isEmpty);
+    expect(
+      await repository.searchStationsOnLine('상록수', 'unknown-line'),
+      isEmpty,
+    );
+  });
+
+  test('주변 역 검색은 로컬 좌표로 거리순 정렬과 limit을 적용한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final results = await repository.searchNearbyStations(
+      const CurrentLocation(latitude: 37.3028, longitude: 126.8666),
+      radiusMeters: 30000,
+      limit: 1,
+    );
+
+    expect(results, hasLength(1));
+    expect(results.single.id, 'station-sangnoksu');
+    expect(results.single.distanceMeters, isNotNull);
+  });
+
+  test('주변 역 검색은 극지방 좌표(cosLat <= 0.01)에서도 안전하게 바운딩 박스를 계산한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final results = await repository.searchNearbyStations(
+      const CurrentLocation(latitude: 89.9, longitude: 0.0),
+      radiusMeters: 1000,
+      limit: 10,
+    );
+
+    expect(results, isEmpty);
+  });
+
+  test('노선도 데이터는 label polygon metadata를 보존한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement(
+      '''
+      UPDATE route_map_positions
+      SET label_polygon = ?
+      WHERE station_id = ? AND line_id = ? AND region = ?
+      ''',
+      [
+        '[{"x":166,"y":226},{"x":214,"y":226},{"x":214,"y":246},{"x":166,"y":246}]',
+        'station-sangnoksu',
+        'seoul-4',
+        '수도권',
+      ],
+    );
+    final repository = DriftStationRepository(database: database);
+
+    final map = await repository.getNetworkMap(
+      region: '수도권',
+      lineId: 'seoul-4',
+    );
+    final sangnoksu = map.stations.singleWhere(
+      (station) => station.id == 'station-sangnoksu',
+    );
+
+    expect(
+      sangnoksu.position.labelPolygon,
+      '[{"x":166,"y":226},{"x":214,"y":226},{"x":214,"y":246},{"x":166,"y":246}]',
+    );
+  });
+
+  test('노선도 데이터는 SQLite REAL 좌표를 int 모델로 반올림한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      UPDATE route_map_positions
+      SET x = 1492.231, y = 753.807
+      WHERE station_id = 'station-sangnoksu' AND line_id = 'seoul-4'
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final map = await repository.getNetworkMap(
+      region: '수도권',
+      lineId: 'seoul-4',
+    );
+    final position = map.stations
+        .singleWhere((station) => station.id == 'station-sangnoksu')
+        .position;
+
+    expect((position.x, position.y), (1492, 754));
+  });
+
+  test('역 상세와 출구, 시설 정보는 로컬 카탈로그의 품질/검증일을 유지한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final detail = await repository.getStationDetail('station-sangnoksu');
+    final exits = await repository.listStationExits('station-sangnoksu');
+    final facilities = await repository.listStationFacilities(
+      'station-sangnoksu',
+    );
+
+    expect(detail.nameKo, '상록수');
+    expect(detail.latitude, closeTo(37.3028, 0.001));
+    expect(detail.longitude, closeTo(126.8666, 0.001));
+    expect(detail.dataQualityLevel, 'LEVEL_2');
+    expect(detail.lastVerifiedAt, '2026-06-19');
+    expect(exits.single.name, '1번 출구');
+    expect(exits.single.latitude, closeTo(37.3021, 0.0001));
+    expect(exits.single.longitude, closeTo(126.8661, 0.0001));
+    expect(exits.single.hasElevatorConnection, isTrue);
+    expect(exits.single.hasStairOnlyPath, StairOnlyPathStatus.unknown);
+    expect(exits.single.stairPathLabel, isNull);
+    expect(exits.single.lastVerifiedAt, '2026-06-19');
+    final elevator = facilities.singleWhere(
+      (facility) => facility.id == 'facility-sangnoksu-elevator-1',
+    );
+    expect(elevator.type, 'ELEVATOR');
+    expect(elevator.lastUpdatedAt, '2026-06-19');
+  });
+
+  test('원천의 미설치 기록은 역 시설 목록에 넣지 않는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO facilities (id, station_id, type, name, installation_status)
+      VALUES
+        ('facility-sangnoksu-lift-absent', 'station-sangnoksu',
+         'WHEELCHAIR_LIFT', '상록수역 휠체어리프트 설치 정보', 'NOT_INSTALLED'),
+        ('facility-sangnoksu-lift-installed', 'station-sangnoksu',
+         'WHEELCHAIR_LIFT', '상록수역 휠체어리프트', 'INSTALLED')
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final facilityIds = (await repository.listStationFacilities(
+      'station-sangnoksu',
+    )).map((facility) => facility.id);
+
+    expect(facilityIds, contains('facility-sangnoksu-lift-installed'));
+    expect(facilityIds, contains('facility-sangnoksu-elevator-1'));
+    expect(facilityIds, isNot(contains('facility-sangnoksu-lift-absent')));
+  });
+
+  test('미설치 엘리베이터에만 이어진 출구는 엘리베이터 연결로 읽지 않는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO station_exits (id, station_id, exit_number, has_elevator_connection)
+      VALUES
+        ('exit-sangnoksu-2', 'station-sangnoksu', '2', 0),
+        ('exit-sangnoksu-3', 'station-sangnoksu', '3', 0)
+      ''');
+    await database.customStatement('''
+      INSERT INTO facilities (id, station_id, exit_id, type, name, installation_status)
+      VALUES
+        ('facility-sangnoksu-exit2-elevator-absent', 'station-sangnoksu',
+         'exit-sangnoksu-2', 'ELEVATOR', '2번 출구 엘리베이터 설치 정보',
+         'NOT_INSTALLED'),
+        ('facility-sangnoksu-exit3-elevator', 'station-sangnoksu',
+         'exit-sangnoksu-3', 'ELEVATOR', '3번 출구 엘리베이터', 'INSTALLED')
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final exits = await repository.listStationExits('station-sangnoksu');
+    final facilityIds = (await repository.listStationFacilities(
+      'station-sangnoksu',
+    )).map((facility) => facility.id);
+
+    final connected = {
+      for (final exit in exits) exit.id: exit.hasElevatorConnection,
+    };
+    expect(connected['exit-sangnoksu-2'], isFalse);
+    expect(connected['exit-sangnoksu-3'], isTrue);
+    expect(facilityIds, contains('facility-sangnoksu-exit3-elevator'));
+    expect(
+      facilityIds,
+      isNot(contains('facility-sangnoksu-exit2-elevator-absent')),
+    );
+  });
+
+  test('역 상세는 모든 노선에서 미설치가 확인된 시설 유형만 없음으로 싣는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO station_facility_evidence (
+        station_id, line_id, facility_type, evidence_kind, source_id,
+        source_snapshot_id, provider_record_hash, evidence_hash,
+        provenance_kind
+      )
+      VALUES
+        ('station-sadang', 'seoul-2', 'WHEELCHAIR_LIFT', 'NOT_EXISTS',
+         'src', 'snap', 'p1', 'e1', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-4', 'WHEELCHAIR_LIFT', 'NOT_EXISTS',
+         'src', 'snap', 'p2', 'e2', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-2', 'ELEVATOR', 'NOT_EXISTS',
+         'src', 'snap', 'p3', 'e3', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-4', 'ELEVATOR', 'EXISTS',
+         'src', 'snap', 'p4', 'e4', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-2', 'ESCALATOR', 'NOT_EXISTS',
+         'src', 'snap', 'p5', 'e5', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-2', 'ACCESSIBILITY_STATUS_PROBE', 'UNKNOWN',
+         'src', 'snap', 'p6', 'e6', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-4', 'ACCESSIBILITY_STATUS_PROBE', 'UNKNOWN',
+         'src', 'snap', 'p7', 'e7', 'OFFICIAL_SOURCE'),
+        ('station-sangnoksu', 'seoul-4', 'ESCALATOR', 'NOT_EXISTS',
+         'src', 'snap', 'p8', 'e8', 'OFFICIAL_SOURCE')
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final sadang = await repository.getStationDetail('station-sadang');
+    final sangnoksu = await repository.getStationDetail('station-sangnoksu');
+
+    expect(sadang.confirmedAbsentFacilityTypes, {'WHEELCHAIR_LIFT'});
+    expect(sangnoksu.confirmedAbsentFacilityTypes, {'ESCALATOR'});
+  });
+
+  test('흡수된 station ID로 상세·출구·시설을 요청해도 대표 역을 반환한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO station_aliases (station_id, alias, normalized_alias)
+      VALUES ('station-sangnoksu', 'station-sangnoksu-old', 'station-sangnoksu-old')
+    ''');
+    final repository = DriftStationRepository(database: database);
+
+    final detail = await repository.getStationDetail('station-sangnoksu-old');
+    final exits = await repository.listStationExits('station-sangnoksu-old');
+    final facilities = await repository.listStationFacilities(
+      'station-sangnoksu-old',
+    );
+
+    expect(detail.id, 'station-sangnoksu');
+    expect(exits, isNotEmpty);
+    expect(facilities, isNotEmpty);
+  });
+
+  test('상록수역 시설은 검증됨, 알 수 없음, 오래됨 현장 상태를 구분한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final facilities = await repository.listStationFacilities(
+      'station-sangnoksu',
+    );
+
+    final elevator = facilities.singleWhere(
+      (facility) => facility.id == 'facility-sangnoksu-elevator-1',
+    );
+    final escalator = facilities.singleWhere(
+      (facility) => facility.id == 'facility-sangnoksu-escalator-1',
+    );
+    final toilet = facilities.singleWhere(
+      (facility) => facility.id == 'facility-sangnoksu-accessible-toilet-1',
+    );
+
+    expect(elevator.dataConfidence, 'HIGH');
+    expect(elevator.semanticLabel, isNot(contains('시설 상태가 확인됐어요')));
+    expect(elevator.lastUpdatedAt, '2026-06-19');
+    expect(escalator.dataConfidence, 'LOW');
+    expect(escalator.semanticLabel, isNot(contains('최신 상태를 준비 중이에요')));
+    expect(toilet.dataConfidence, 'LOW');
+    expect(toilet.semanticLabel, isNot(contains('최신 상태를 준비 중이에요')));
+  });
+
+  test('상록수역 시설은 최신 현장 검증 record를 선택한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO data_quality_records (
+        id,
+        target_type,
+        target_id,
+        quality_level,
+        checked_at
+      )
+      VALUES
+        ('quality-facility-elevator-stale-newer', 'facility', 'facility-sangnoksu-elevator-1', 'FIELD_STALE', 1781913600),
+        ('quality-facility-elevator-unknown-undated', 'facility', 'facility-sangnoksu-elevator-1', 'FIELD_UNKNOWN', NULL)
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final facilities = await repository.listStationFacilities(
+      'station-sangnoksu',
+    );
+
+    final elevator = facilities.singleWhere(
+      (facility) => facility.id == 'facility-sangnoksu-elevator-1',
+    );
+    expect(elevator.dataConfidence, 'LOW');
+    expect(elevator.lastUpdatedAt, '2026-06-20');
+    expect(elevator.semanticLabel, isNot(contains('최신 상태를 준비 중이에요')));
+  });
+
+  test('존재하지 않는 역 상세 조회는 역 검색 예외를 던진다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    expect(
+      () => repository.getStationDetail('non-existent-station'),
+      throwsA(isA<StationSearchException>()),
+    );
+  });
+
+  test('앱 기본 의존성은 catalog DB가 있으면 로컬 역 repository를 사용한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: database,
+      enablePushNotifications: false,
+    );
+
+    expect(dependencies.repository, isA<DriftStationRepository>());
+  });
+
+  test('노선도 데이터는 노선별 line track을 track index 순으로 로드한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    // track_index를 일부러 뒤집어 삽입 — ORDER BY track_index 검증.
+    await database.customStatement(
+      '''
+      INSERT INTO route_map_line_tracks
+        (region, line_id, track_index, path, svg_color, source_id, source_name,
+         source_url, license, license_status, commercial_use_allowed, attribution_required)
+      VALUES
+        (?, ?, 1, 'M 20 0 L 30 0', '', 's', 'n', 'u', 'l', 'reviewed', 0, 1),
+        (?, ?, 0, 'M 0 0 L 10 0', '', 's', 'n', 'u', 'l', 'reviewed', 0, 1)
+      ''',
+      ['수도권', 'seoul-4', '수도권', 'seoul-4'],
+    );
+    final repository = DriftStationRepository(database: database);
+
+    final map = await repository.getNetworkMap(
+      region: '수도권',
+      lineId: 'seoul-4',
+    );
+    final track = map.lineTracks.singleWhere(
+      (track) => track.lineId == 'seoul-4',
+    );
+
+    expect(track.paths, ['M 0 0 L 10 0', 'M 20 0 L 30 0']);
+  });
+
+  test('station_contacts 테이블이 없어도 역 상세 조회는 빈 연락처 목록을 반환한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final detail = await repository.getStationDetail('station-sangnoksu');
+
+    expect(detail.contacts, isEmpty);
+  });
+
+  test('station_contacts 테이블이 있으면 역 상세에 노선 순서대로 역무실 연락처를 매핑한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      CREATE TABLE station_contacts (
+        station_id TEXT NOT NULL,
+        line_id TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        phone_raw TEXT NOT NULL,
+        source_snapshot_id TEXT NOT NULL,
+        PRIMARY KEY (station_id, line_id)
+      )
+    ''');
+    await database.customStatement('''
+      INSERT INTO station_contacts (
+        station_id, line_id, phone, phone_raw, source_snapshot_id
+      )
+      VALUES
+        ('station-sadang', 'seoul-4', '02-6110-4331', '02-6110-4331', 'snap-1'),
+        ('station-sadang', 'seoul-2', '02-6110-2261', '02-6110-2261', 'snap-1'),
+        ('station-sangnoksu', 'seoul-4', '031-409-7788', '031-409-7788', 'snap-1')
+    ''');
+    await database.customStatement('''
+      INSERT INTO station_aliases (station_id, alias, normalized_alias)
+      VALUES ('station-sangnoksu', 'station-sangnoksu-legacy', 'station-sangnoksu-legacy')
+    ''');
+    final repository = DriftStationRepository(database: database);
+
+    final sadang = await repository.getStationDetail('station-sadang');
+    final sangnoksu = await repository.getStationDetail(
+      'station-sangnoksu-legacy',
+    );
+
+    expect(sadang.contacts, hasLength(2));
+    expect(sadang.contacts[0].lineId, 'seoul-2');
+    expect(sadang.contacts[0].lineName, '수도권 2호선');
+    expect(sadang.contacts[0].phone, '02-6110-2261');
+    expect(sadang.contacts[0].spokenPhone, '02 6110 2261');
+    expect(sadang.contacts[1].lineId, 'seoul-4');
+    expect(sadang.contacts[1].lineName, '수도권 4호선');
+    expect(sadang.contacts[1].phone, '02-6110-4331');
+    expect(sadang.contacts[1].spokenPhone, '02 6110 4331');
+
+    expect(sangnoksu.contacts, hasLength(1));
+    expect(sangnoksu.contacts.single.lineId, 'seoul-4');
+    expect(sangnoksu.contacts.single.lineName, '수도권 4호선');
+    expect(sangnoksu.contacts.single.phone, '031-409-7788');
+    expect(sangnoksu.contacts.single.spokenPhone, '031 409 7788');
+  });
+
+  test('status 컬럼에 NOT_INSTALLED가 기록된 시설도 시설 목록과 출구 엘리베이터 연결에서 제외한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO station_exits (id, station_id, exit_number, has_elevator_connection)
+      VALUES ('exit-sangnoksu-4', 'station-sangnoksu', '4', 0)
+    ''');
+    await database.customStatement('''
+      INSERT INTO facilities (id, station_id, exit_id, type, name, status, installation_status)
+      VALUES (
+        'facility-sangnoksu-exit4-elevator-status-absent',
+        'station-sangnoksu',
+        'exit-sangnoksu-4',
+        'ELEVATOR',
+        '4번 출구 미설치 엘리베이터',
+        'NOT_INSTALLED',
+        ''
+      )
+    ''');
+    final repository = DriftStationRepository(database: database);
+
+    final exits = await repository.listStationExits('station-sangnoksu');
+    final facilities = await repository.listStationFacilities(
+      'station-sangnoksu',
+    );
+
+    final exit4 = exits.singleWhere((exit) => exit.id == 'exit-sangnoksu-4');
+    expect(exit4.hasElevatorConnection, isFalse);
+    expect(
+      facilities.map((facility) => facility.id),
+      isNot(contains('facility-sangnoksu-exit4-elevator-status-absent')),
+    );
+  });
+
+  test('서버 응답 StationDetail.fromJson은 미설치 확인 시설 유형과 역무실 연락처를 보존한다', () {
+    final detail = StationDetail.fromJson(const {
+      'id': 'station-sadang',
+      'nameKo': '사당',
+      'nameEn': 'Sadang',
+      'nameSub': '',
+      'region': '수도권',
+      'latitude': 37.4765,
+      'longitude': 126.9816,
+      'dataQualityLevel': 'LEVEL_1',
+      'dataSourceType': 'OFFICIAL_API',
+      'lastVerifiedAt': '2026-09-27',
+      'lines': [
+        {
+          'id': 'seoul-2',
+          'name': '수도권 2호선',
+          'color': '#00A84D',
+          'stationCode': '226',
+        },
+      ],
+      'confirmedAbsentFacilityTypes': ['WHEELCHAIR_LIFT', 'ELEVATOR'],
+      'contacts': [
+        {'lineId': 'seoul-2', 'lineName': '수도권 2호선', 'phone': '02-6110-2261'},
+      ],
+    });
+
+    expect(
+      detail.confirmedAbsentFacilityTypes,
+      equals({'WHEELCHAIR_LIFT', 'ELEVATOR'}),
+    );
+    expect(detail.contacts, hasLength(1));
+    expect(detail.contacts.single.lineId, 'seoul-2');
+    expect(detail.contacts.single.lineName, '수도권 2호선');
+    expect(detail.contacts.single.phone, '02-6110-2261');
+  });
+
+  test('getNetworkMap(lineId:)는 line_id 필터를 SQL에 푸시다운하고 환승 소속을 유지한다', () async {
+    final recorder = _StationSqlRecordingInterceptor();
+    final database = CatalogDatabase(
+      NativeDatabase.memory().interceptWith(recorder),
+    );
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+        INSERT INTO route_map_line_tracks
+          (region, line_id, track_index, path, svg_color, source_id, source_name,
+           source_url, license, license_status, commercial_use_allowed, attribution_required)
+        VALUES
+          ('수도권', 'seoul-4', 0, 'M 0 0 L 10 0', '', 's', 'n', 'u', 'l', 'reviewed', 0, 1),
+          ('수도권', 'seoul-2', 0, 'M 5 5 L 15 5', '', 's', 'n', 'u', 'l', 'reviewed', 0, 1)
+        ''');
+    await database.customStatement('''
+        INSERT INTO network_edges
+          (id, from_node_id, to_node_id, edge_type, service_class, service_pattern,
+           accessibility_status, reliability_score)
+        VALUES
+          ('edge-4', 'station-sangnoksu:seoul-4', 'station-sadang:seoul-4',
+           'RIDE', 'SUBWAY', 'LOCAL', 'ACCESSIBLE', 100),
+          ('edge-2', 'station-sadang:seoul-2', 'station-sangnoksu:seoul-2',
+           'RIDE', 'SUBWAY', 'LOCAL', 'ACCESSIBLE', 100)
+        ''');
+    final repository = DriftStationRepository(database: database);
+    await repository.warmSearchCache();
+    recorder.selects.clear();
+
+    final map = await repository.getNetworkMap(
+      region: '수도권',
+      lineId: 'seoul-4',
+    );
+    final detail = await repository.getStationDetail('station-sadang');
+
+    expect(detail.id, 'station-sadang');
+    expect(
+      map.stations.every((station) => station.lineId == 'seoul-4'),
+      isTrue,
+    );
+    expect(map.lineTracks.map((track) => track.lineId), ['seoul-4']);
+    expect(map.edges.map((edge) => edge.id), contains('edge-4'));
+    expect(map.edges.map((edge) => edge.lineId), everyElement('seoul-4'));
+    expect(
+      map.stationLineMemberships
+          .where((membership) => membership.stationId == 'station-sadang')
+          .map((membership) => membership.lineId),
+      containsAll(['seoul-2', 'seoul-4']),
+    );
+    expect(
+      recorder.selects.any(
+        (sql) =>
+            sql.contains('FROM route_map_positions rmp') &&
+            sql.contains('sl.line_id = ?'),
+      ),
+      isTrue,
+    );
+    expect(
+      recorder.selects.any(
+        (sql) =>
+            sql.contains('FROM route_map_line_tracks') &&
+            sql.contains('line_id = ?'),
+      ),
+      isTrue,
+    );
+    expect(
+      recorder.selects.any(
+        (sql) => sql.contains('FROM network_edges') && sql.contains('SUBSTR('),
+      ),
+      isTrue,
+    );
+  });
+}
+
+class _StationSqlRecordingInterceptor extends QueryInterceptor {
+  final List<String> selects = <String>[];
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    selects.add(statement);
+    return super.runSelect(executor, statement, args);
+  }
+}

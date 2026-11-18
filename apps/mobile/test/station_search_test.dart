@@ -1,0 +1,2240 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:drift/drift.dart' show Value;
+import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
+import 'package:easysubway_mobile/features/stations/application/station_detail_controller.dart';
+import 'package:easysubway_mobile/features/stations/application/station_search_controller.dart';
+import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
+import 'package:easysubway_mobile/features/stations/data/station_api_repository.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
+import 'package:easysubway_mobile/features/stations/data/station_api_base_uri.dart'
+    show
+        defaultStationApiBaseUri,
+        defaultOptionalStationApiBaseUri,
+        stationApiBaseUriForBuildMode,
+        stationApiBaseUriForEnvironment;
+import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('시간표 출발 모델은 일반·급행 운행종별을 시각순으로 유지한다', () {
+    const local = StationTimetableDeparture(
+      directionName: '사당 방면',
+      seconds: 28800, // 08:00
+    );
+    const express = StationTimetableDeparture(
+      directionName: '사당 방면',
+      seconds: 28980, // 08:03
+      servicePattern: 'EXPRESS',
+      serviceClass: 'SUBWAY',
+    );
+    const direction = StationTimetableDirection(
+      name: '사당 방면',
+      departures: [local, express],
+    );
+
+    expect(direction.departures.map((departure) => departure.seconds), [
+      28800,
+      28980,
+    ]);
+    expect(local.timeLabel, '08:00');
+    expect(express.timeLabel, '08:03');
+    expect(local.isExpress, isFalse);
+    expect(express.isExpress, isTrue);
+    expect(direction.firstDeparture.timeLabel, '08:00');
+    expect(direction.lastDeparture.timeLabel, '08:03');
+    expect(express.semanticLabel, contains('급행'));
+    expect(local.semanticLabel, isNot(contains('급행')));
+  });
+
+  test('시간표 방향은 일반·급행 출발을 시각순으로 묶고 첫차·막차를 유지한다', () {
+    // LOCAL 08:00과 EXPRESS 08:03이 한 방향 목록에 시각순으로 함께 놓이고,
+    // 급행 판정은 08:03에만 참이며, 첫차/막차는 목록 양끝을 그대로 가리킨다.
+    // (화면 렌더링 회귀는 widget_test.dart의 역 시간표 화면 테스트가 담당한다.)
+    const direction = StationTimetableDirection(
+      name: '사당 방면',
+      departures: [
+        StationTimetableDeparture(directionName: '사당 방면', seconds: 28800),
+        StationTimetableDeparture(
+          directionName: '사당 방면',
+          seconds: 28980,
+          servicePattern: 'EXPRESS',
+          serviceClass: 'SUBWAY',
+        ),
+      ],
+    );
+
+    expect(
+      direction.departures.map((departure) => departure.timeLabel).toList(),
+      ['08:00', '08:03'],
+    );
+    expect(
+      direction.departures.map((departure) => departure.isExpress).toList(),
+      [false, true],
+    );
+    expect(direction.firstDeparture.timeLabel, '08:00');
+    expect(direction.firstDeparture.isExpress, isFalse);
+    expect(direction.lastDeparture.timeLabel, '08:03');
+    expect(direction.lastDeparture.isExpress, isTrue);
+  });
+
+  test('릴리즈 빌드는 API 기본 주소를 반드시 설정해야 한다', () {
+    expect(
+      () => stationApiBaseUriForEnvironment(
+        configuredBaseUrl: '',
+        isAndroid: true,
+        isReleaseMode: true,
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Release API base URL must be configured.',
+        ),
+      ),
+    );
+  });
+
+  test('기본 역 API 주소는 현재 debug 플랫폼 주소를 사용한다', () {
+    final expectedUri = Uri.parse(
+      Platform.isAndroid ? 'http://10.0.2.2:8080' : 'http://127.0.0.1:8080',
+    );
+    expect(defaultStationApiBaseUri(), expectedUri);
+    expect(defaultOptionalStationApiBaseUri(), expectedUri);
+  });
+
+  test('빌드 모드 역 API 주소 resolver는 profile을 막고 두 debug 플랫폼을 유지한다', () {
+    expect(
+      () => stationApiBaseUriForBuildMode(
+        configuredBaseUrl: '',
+        isAndroid: true,
+        isReleaseMode: false,
+        isDebugMode: false,
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Development API base URL is only available in debug.',
+        ),
+      ),
+    );
+    expect(
+      stationApiBaseUriForBuildMode(
+        configuredBaseUrl: '',
+        isAndroid: true,
+        isReleaseMode: false,
+        isDebugMode: true,
+      ),
+      Uri.parse('http://10.0.2.2:8080'),
+    );
+    expect(
+      stationApiBaseUriForBuildMode(
+        configuredBaseUrl: '',
+        isAndroid: false,
+        isReleaseMode: false,
+        isDebugMode: true,
+      ),
+      Uri.parse('http://127.0.0.1:8080'),
+    );
+  });
+
+  test('릴리즈 빌드는 HTTPS API 주소만 사용한다', () {
+    expect(
+      () => stationApiBaseUriForEnvironment(
+        configuredBaseUrl: 'http://api.easysubway.example',
+        isAndroid: false,
+        isReleaseMode: true,
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Release API base URL must use HTTPS.',
+        ),
+      ),
+    );
+
+    final baseUri = stationApiBaseUriForEnvironment(
+      configuredBaseUrl: 'https://api.easysubway.example',
+      isAndroid: false,
+      isReleaseMode: true,
+    );
+
+    expect(baseUri, Uri.parse('https://api.easysubway.example'));
+  });
+
+  test('릴리즈 빌드는 호스트가 없는 API 주소를 거부한다', () {
+    expect(
+      () => stationApiBaseUriForEnvironment(
+        configuredBaseUrl: 'https://',
+        isAndroid: false,
+        isReleaseMode: true,
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Release API base URL must include a host.',
+        ),
+      ),
+    );
+  });
+
+  test('개발 빌드는 Android 에뮬레이터 로컬 API 주소를 유지한다', () {
+    final baseUri = stationApiBaseUriForEnvironment(
+      configuredBaseUrl: '',
+      isAndroid: true,
+      isReleaseMode: false,
+    );
+
+    expect(baseUri, Uri.parse('http://10.0.2.2:8080'));
+  });
+
+  test('역 데이터 품질은 내부 레벨을 쉬운 안내 문구로 바꾼다', () {
+    final labels = ['LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'LEVEL_4', 'UNKNOWN']
+        .map(
+          (level) => StationSearchResult(
+            id: 'station-$level',
+            nameKo: '상록수',
+            nameEn: 'Sangnoksu',
+            region: '수도권',
+            dataQualityLevel: level,
+            lastVerifiedAt: '2026-06-12',
+            lines: const [],
+          ).dataQualityLabel,
+        )
+        .toList(growable: false);
+
+    // 내부 데이터 품질 라벨은 사용자에게 노출하지 않으므로 전부 빈 문자열이다(#1578).
+    expect(labels, ['', '', '', '', '']);
+  });
+
+  test('역 API 저장소는 백엔드 역 목록을 요청하고 결과를 파싱한다', () async {
+    late Uri requestedUri;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'id': 'station-sangnoksu',
+                'nameKo': '상록수',
+                'nameEn': 'Sangnoksu',
+                'region': '수도권',
+                'dataQualityLevel': 'LEVEL_1',
+                'dataSourceType': 'OFFICIAL_FILE',
+                'lastVerifiedAt': '2026-06-12',
+                'lines': [
+                  {
+                    'id': 'seoul-4',
+                    'operatorId': 'seoul-metro',
+                    'name': '수도권 4호선',
+                    'color': '#00A5DE',
+                    'stationCode': '448',
+                    'sequence': 48,
+                    'platformInfo': '당고개 방면 / 오이도 방면',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    final results = await repository.searchStations('상록수');
+
+    expect(requestedUri.path, '/api/v1/stations');
+    expect(requestedUri.queryParameters['query'], '상록수');
+    expect(results, hasLength(1));
+    expect(results.single.id, 'station-sangnoksu');
+    expect(results.single.nameKo, '상록수');
+    expect(results.single.region, '수도권');
+    expect(results.single.dataQualityLabel, '');
+    expect(results.single.dataSourceLabel, '공식 안내');
+    expect(results.single.lines.single.name, '수도권 4호선');
+  });
+
+  test('역 API 저장소는 초성 검색어를 그대로 요청한다', () async {
+    late Uri requestedUri;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'id': 'station-sangnoksu',
+                'nameKo': '상록수',
+                'nameEn': 'Sangnoksu',
+                'region': '수도권',
+                'dataQualityLevel': 'LEVEL_1',
+                'dataSourceType': 'OFFICIAL_FILE',
+                'lastVerifiedAt': '2026-06-12',
+                'lines': [
+                  {
+                    'id': 'seoul-4',
+                    'operatorId': 'seoul-metro',
+                    'name': '수도권 4호선',
+                    'color': '#00A5DE',
+                    'stationCode': '448',
+                    'sequence': 48,
+                    'platformInfo': '당고개 방면 / 오이도 방면',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    final results = await repository.searchStations('ㅅㄹㅅ');
+
+    expect(requestedUri.path, '/api/v1/stations');
+    expect(requestedUri.queryParameters['query'], 'ㅅㄹㅅ');
+    expect(results.single.nameKo, '상록수');
+  });
+
+  test('역 API 저장소는 선택한 노선으로 역 검색을 좁힌다', () async {
+    late Uri requestedUri;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'id': 'station-sangnoksu',
+                'nameKo': '상록수',
+                'nameEn': 'Sangnoksu',
+                'region': '수도권',
+                'dataQualityLevel': 'LEVEL_1',
+                'dataSourceType': 'OFFICIAL_FILE',
+                'lastVerifiedAt': '2026-06-12',
+                'lines': [
+                  {
+                    'id': 'seoul-4',
+                    'operatorId': 'seoul-metro',
+                    'name': '수도권 4호선',
+                    'color': '#00A5DE',
+                    'stationCode': '448',
+                    'sequence': 48,
+                    'platformInfo': '당고개 방면 / 오이도 방면',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    final results = await repository.searchStationsOnLine('상록수', 'seoul-4');
+
+    expect(requestedUri.path, '/api/v1/stations');
+    expect(requestedUri.queryParameters['query'], '상록수');
+    expect(requestedUri.queryParameters['lineId'], 'seoul-4');
+    expect(results.single.nameKo, '상록수');
+  });
+
+  test('역 API 저장소는 노선 목록을 요청하고 쉬운 라벨로 파싱한다', () async {
+    late Uri requestedUri;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'id': 'seoul-4',
+                'operatorId': 'seoul-metro',
+                'name': '수도권 4호선',
+                'color': '#00A5DE',
+                'region': '수도권',
+                'lineCode': '4',
+                'active': true,
+              },
+              {
+                'id': 'korail-gyeongui-jungang',
+                'operatorId': 'korail',
+                'name': '경의중앙선',
+                'color': '#75C5A1',
+                'region': '수도권',
+                'lineCode': '경의중앙',
+                'active': true,
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    final lines = await repository.listLines();
+
+    expect(requestedUri.path, '/api/v1/lines');
+    expect(lines.map((line) => line.badgeLine.badgeText), ['4', '경의중앙']);
+    expect(lines.first.semanticLabel, '수도권 4호선');
+  });
+
+  test('로컬 역 저장소는 노선명에서 지역 필터 값을 만든다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.batch((batch) {
+      batch.insertAll(database.lines, [
+        LinesCompanion.insert(
+          id: 'busan-1',
+          operatorId: 'humetro',
+          nameKo: '부산 1호선',
+          color: const Value('#F06A00'),
+        ),
+        LinesCompanion.insert(
+          id: 'seoul-4',
+          operatorId: 'seoul-metro',
+          nameKo: '수도권 4호선',
+          color: const Value('#00A5DE'),
+        ),
+      ]);
+    });
+    final repository = DriftStationRepository(database: database);
+
+    final lines = await repository.listLines();
+
+    expect(lines.map((line) => '${line.id}:${line.region}'), [
+      'busan-1:부산',
+      'seoul-4:수도권',
+    ]);
+  });
+
+  test('역 API 저장소는 현재 위치에서 가까운 역을 요청하고 거리를 파싱한다', () async {
+    late Uri requestedUri;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'id': 'station-sangnoksu',
+                'nameKo': '상록수',
+                'nameEn': 'Sangnoksu',
+                'region': '수도권',
+                'dataQualityLevel': 'LEVEL_1',
+                'dataSourceType': 'OFFICIAL_FILE',
+                'lastVerifiedAt': '2026-06-12',
+                'distanceMeters': 230,
+                'lines': [
+                  {
+                    'id': 'seoul-4',
+                    'operatorId': 'seoul-metro',
+                    'name': '수도권 4호선',
+                    'color': '#00A5DE',
+                    'stationCode': '448',
+                    'sequence': 48,
+                    'platformInfo': '당고개 방면 / 오이도 방면',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    final results = await repository.searchNearbyStations(
+      const CurrentLocation(latitude: 37.3028, longitude: 126.8665),
+      radiusMeters: 1500,
+      limit: 5,
+    );
+
+    expect(requestedUri.path, '/api/v1/stations/nearby');
+    expect(requestedUri.queryParameters['lat'], '37.3028');
+    expect(requestedUri.queryParameters['lng'], '126.8665');
+    expect(requestedUri.queryParameters['radiusMeters'], '1500');
+    expect(requestedUri.queryParameters['limit'], '5');
+    expect(results.single.nameKo, '상록수');
+    expect(results.single.distanceMeters, 230);
+    expect(results.single.distanceLabel, '현재 위치에서 230m');
+  });
+
+  test('역 API 저장소는 정수가 아닌 거리 응답을 계약 위반으로 처리한다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'id': 'station-sangnoksu',
+                'nameKo': '상록수',
+                'nameEn': 'Sangnoksu',
+                'region': '수도권',
+                'dataQualityLevel': 'LEVEL_1',
+                'lastVerifiedAt': '2026-06-12',
+                'distanceMeters': 230.4,
+                'lines': [
+                  {
+                    'id': 'seoul-4',
+                    'name': '수도권 4호선',
+                    'color': '#00A5DE',
+                    'stationCode': '448',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        repository.searchNearbyStations(
+          const CurrentLocation(latitude: 37.3028, longitude: 126.8665),
+        ),
+        throwsA(
+          isA<StationSearchException>().having(
+            (error) => error.message,
+            'message',
+            '역 정보를 불러오지 못했어요.',
+          ),
+        ),
+      );
+    });
+
+    expect(reportedErrors.single.exception, isA<FormatException>());
+  });
+
+  test('역 API 저장소는 역 상세와 출구와 시설 정보를 요청하고 파싱한다', () async {
+    final requestedPaths = <String>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestedPaths.add(request.uri.path);
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json;
+
+      switch (request.uri.path) {
+        case '/api/v1/stations/station-sangnoksu':
+          request.response.write(
+            jsonEncode({
+              'success': true,
+              'data': {
+                'id': 'station-sangnoksu',
+                'nameKo': '상록수',
+                'nameEn': 'Sangnoksu',
+                'region': '수도권',
+                'latitude': 37.302795,
+                'longitude': 126.866489,
+                'dataQualityLevel': 'LEVEL_1',
+                'dataSourceType': 'OFFICIAL_FILE',
+                'lastVerifiedAt': '2026-06-12',
+                'lines': [
+                  {
+                    'id': 'seoul-4',
+                    'operatorId': 'seoul-metro',
+                    'name': '수도권 4호선',
+                    'color': '#00A5DE',
+                    'stationCode': '448',
+                    'sequence': 48,
+                    'platformInfo': '당고개 방면 / 오이도 방면',
+                  },
+                ],
+              },
+            }),
+          );
+          break;
+        case '/api/v1/stations/station-sangnoksu/exits':
+          request.response.write(
+            jsonEncode({
+              'success': true,
+              'data': [
+                {
+                  'id': 'exit-sangnoksu-1',
+                  'stationId': 'station-sangnoksu',
+                  'exitNumber': '1',
+                  'name': '1번 출구',
+                  'latitude': 37.302795,
+                  'longitude': 126.866489,
+                  'hasElevatorConnection': true,
+                  'hasStairOnlyPath': 'absent',
+                  'dataConfidence': 'HIGH',
+                  'dataSourceType': 'OFFICIAL_FILE',
+                },
+              ],
+            }),
+          );
+          break;
+        case '/api/v1/stations/station-sangnoksu/facilities':
+          request.response.write(
+            jsonEncode({
+              'success': true,
+              'data': [
+                {
+                  'id': 'facility-sangnoksu-elevator-1',
+                  'stationId': 'station-sangnoksu',
+                  'exitId': 'exit-sangnoksu-1',
+                  'type': 'ELEVATOR',
+                  'name': '1번 출구 엘리베이터',
+                  'floorFrom': 'B1',
+                  'floorTo': '1F',
+                  'latitude': 37.302795,
+                  'longitude': 126.866489,
+                  'description': '1번 출구 앞',
+                  'status': 'NORMAL',
+                  'dataConfidence': 'HIGH',
+                  'dataSourceType': 'OFFICIAL_FILE',
+                  'lastUpdatedAt': '2026-06-12',
+                },
+              ],
+            }),
+          );
+          break;
+        default:
+          request.response
+            ..statusCode = HttpStatus.notFound
+            ..write(jsonEncode({'success': false}));
+          break;
+      }
+
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    final detail = await repository.getStationDetail('station-sangnoksu');
+    final exits = await repository.listStationExits('station-sangnoksu');
+    final facilities = await repository.listStationFacilities(
+      'station-sangnoksu',
+    );
+
+    expect(requestedPaths, [
+      '/api/v1/stations/station-sangnoksu',
+      '/api/v1/stations/station-sangnoksu/exits',
+      '/api/v1/stations/station-sangnoksu/facilities',
+    ]);
+    expect(detail.nameKo, '상록수');
+    expect(detail.latitude, 37.302795);
+    expect(detail.longitude, 126.866489);
+    expect(detail.dataQualityLabel, '');
+    expect(detail.dataSourceLabel, '공식 안내');
+    expect(detail.lines.single.stationCode, '448');
+    expect(exits.single.name, '1번 출구');
+    expect(exits.single.latitude, 37.302795);
+    expect(exits.single.longitude, 126.866489);
+    expect(exits.single.hasElevatorConnection, isTrue);
+    expect(exits.single.stairPathLabel, '계단 없는 이동 가능');
+    expect(exits.single.dataSourceLabel, '공식 안내');
+    expect(facilities.single.typeLabel, '엘리베이터');
+    expect(facilities.single.latitude, 37.302795);
+    expect(facilities.single.longitude, 126.866489);
+    expect(facilities.single.statusLabel, '정상');
+    expect(facilities.single.statusTitle, '정상 운행');
+    expect(facilities.single.confidenceLabel, '');
+    expect(facilities.single.dataSourceLabel, '공식 안내');
+  });
+
+  test(
+    'StationExitInfo.fromJson은 hasStairOnlyPath가 없거나 null이면 unknown으로 설정한다',
+    () {
+      final exitWithoutStair = StationExitInfo.fromJson(const {
+        'id': 'exit-sangnoksu-1',
+        'stationId': 'station-sangnoksu',
+        'exitNumber': '1',
+        'name': '1번 출구',
+        'hasElevatorConnection': true,
+        'dataConfidence': 'HIGH',
+      });
+      expect(exitWithoutStair.hasStairOnlyPath, StairOnlyPathStatus.unknown);
+      expect(exitWithoutStair.stairPathLabel, isNull);
+      expect(exitWithoutStair.semanticLabel, isNot(contains('계단 없는 이동 가능')));
+      expect(exitWithoutStair.semanticLabel, isNot(contains('계단만 있는 길 있음')));
+    },
+  );
+
+  test(
+    'StationExitInfo.fromJson은 hasStairOnlyPath 값을 3상태로 해석하고 알 수 없는 값은 unknown으로 둔다',
+    () {
+      StairOnlyPathStatus parse(Object? value) {
+        return StationExitInfo.fromJson({
+          'id': 'exit-sangnoksu-1',
+          'stationId': 'station-sangnoksu',
+          'exitNumber': '1',
+          'name': '1번 출구',
+          'hasElevatorConnection': true,
+          'hasStairOnlyPath': value,
+          'dataConfidence': 'HIGH',
+        }).hasStairOnlyPath;
+      }
+
+      // 근거가 붙지 않은 bool·'true'/'false'는 검증된 계단 정보가 아니므로 unknown이다(#418 리뷰 F1).
+      expect(parse(true), StairOnlyPathStatus.unknown);
+      expect(parse(false), StairOnlyPathStatus.unknown);
+      expect(parse(' TRUE '), StairOnlyPathStatus.unknown);
+      expect(parse('false'), StairOnlyPathStatus.unknown);
+      expect(parse('present'), StairOnlyPathStatus.present);
+      expect(parse(' PRESENT '), StairOnlyPathStatus.present);
+      expect(parse('absent'), StairOnlyPathStatus.absent);
+      expect(parse('unknown'), StairOnlyPathStatus.unknown);
+      expect(parse('maybe'), StairOnlyPathStatus.unknown);
+      expect(parse(1), StairOnlyPathStatus.unknown);
+    },
+  );
+
+  test('즐겨찾기 역 모델은 노선·출처·시맨틱 라벨을 제공한다', () {
+    const favorite = FavoriteStation(
+      userId: 'anonymous-user-1',
+      stationId: 'station-sangnoksu',
+      nameKo: '상록수',
+      nameEn: 'Sangnoksu',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      dataSourceType: 'OFFICIAL_FILE',
+      lastVerifiedAt: '2026-06-12',
+      lines: [
+        StationSearchLine(
+          id: 'seoul-4',
+          name: '수도권 4호선',
+          color: '#00A5DE',
+          stationCode: '448',
+        ),
+      ],
+      addedAt: '2026-06-13T10:00:00',
+    );
+    const noLineFavorite = FavoriteStation(
+      userId: 'anonymous-user-1',
+      stationId: 'station-sangnoksu',
+      nameKo: '상록수',
+      nameEn: 'Sangnoksu',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      lastVerifiedAt: '2026-06-12',
+      lines: [],
+      addedAt: '2026-06-13T10:00:00',
+    );
+
+    expect(favorite.stationId, 'station-sangnoksu');
+    expect(favorite.nameKo, '상록수');
+    expect(favorite.lineLabel, '수도권 4호선');
+    expect(favorite.dataQualityLabel, '');
+    expect(favorite.dataSourceLabel, '공식 안내');
+    expect(favorite.semanticLabel, '즐겨찾기 역, 상록수, 수도권 4호선, 수도권');
+    expect(noLineFavorite.lineLabel, '노선 정보 없음');
+    expect(const FavoriteStationException('오류').toString(), '오류');
+  });
+
+  test('역 API 저장소는 형식이 잘못된 역 응답을 거부한다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [
+              {
+                'nameKo': '상록수',
+                'nameEn': 'Sangnoksu',
+                'region': '수도권',
+                'dataQualityLevel': 'LEVEL_1',
+                'lastVerifiedAt': '2026-06-12',
+                'lines': [
+                  {
+                    'id': 'seoul-4',
+                    'name': '수도권 4호선',
+                    'color': '#00A5DE',
+                    'stationCode': '448',
+                  },
+                ],
+              },
+            ],
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = StationSearchApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        repository.searchStations('상록수'),
+        throwsA(
+          isA<StationSearchException>().having(
+            (error) => error.message,
+            'message',
+            '역 정보를 불러오지 못했어요.',
+          ),
+        ),
+      );
+    });
+    expect(reportedErrors, hasLength(1));
+    expect(reportedErrors.single.exception, isA<FormatException>());
+    expect(reportedErrors.single.stack, isNotNull);
+  });
+
+  test('역 검색 컨트롤러는 빈 입력을 API 호출 없이 대기 상태로 둔다', () async {
+    final repository = FakeStationSearchRepository();
+    final controller = StationSearchController(repository: repository);
+
+    await controller.search('   ');
+
+    expect(repository.requestedQueries, isEmpty);
+    expect(controller.state.status, StationSearchStatus.idle);
+    expect(controller.state.results, isEmpty);
+  });
+
+  test('역 검색 컨트롤러는 선택한 노선으로 결과를 요청한다', () async {
+    final repository = FakeStationSearchRepository()
+      ..nextResults = [_stationResult(id: 'station-sangnoksu', name: '상록수')];
+    final controller = StationSearchController(repository: repository);
+
+    await controller.search('상록수', lineId: 'seoul-4');
+
+    expect(repository.requestedQueries, ['상록수']);
+    expect(repository.requestedLineIds, ['seoul-4']);
+    expect(controller.state.status, StationSearchStatus.success);
+  });
+
+  test('역 검색 컨트롤러는 검색어를 로컬 최근 검색 저장소에 기록한다', () async {
+    final repository = FakeStationSearchRepository()
+      ..nextResults = [_stationResult(id: 'station-sangnoksu', name: '상록수')];
+    final historyRepository = FakeSearchHistoryRepository();
+    final controller = StationSearchController(
+      repository: repository,
+      searchHistoryRepository: historyRepository,
+    );
+
+    await controller.search(' 상록수 ');
+
+    expect(repository.requestedQueries, ['상록수']);
+    expect(historyRepository.recordedQueries, ['상록수']);
+  });
+
+  test('역 검색 컨트롤러 showPendingSearch는 empty를 loading으로 바꿔 빈 결과 깜빡임을 막는다', () {
+    final repository = FakeStationSearchRepository();
+    final controller = StationSearchController(repository: repository);
+
+    // empty와 같은 시각 상태(결과 없음)에서 대기 UI로 올린다.
+    controller.showPendingSearch();
+    expect(controller.state.status, StationSearchStatus.loading);
+    expect(controller.state.results, isEmpty);
+
+    controller.showPendingSearch();
+    expect(controller.state.status, StationSearchStatus.loading);
+  });
+
+  test('역 검색 컨트롤러는 재검색 중 이전 결과를 유지한다', () async {
+    final repository = ControlledStationSearchRepository();
+    final controller = StationSearchController(repository: repository);
+
+    final firstSearch = controller.search('상록수');
+    expect(controller.state.status, StationSearchStatus.loading);
+    expect(controller.state.results, isEmpty);
+
+    repository.complete('상록수', [
+      _stationResult(id: 'station-sangnoksu', name: '상록수'),
+    ]);
+    await firstSearch;
+    expect(controller.state.status, StationSearchStatus.success);
+    expect(controller.state.results.single.nameKo, '상록수');
+
+    final secondSearch = controller.search('강남');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.state.status, StationSearchStatus.success);
+    expect(controller.state.results.single.nameKo, '상록수');
+
+    repository.complete('강남', [
+      _stationResult(id: 'station-gangnam', name: '강남'),
+    ]);
+    await secondSearch;
+
+    expect(controller.state.status, StationSearchStatus.success);
+    expect(controller.state.results.single.nameKo, '강남');
+  });
+
+  test('역 검색 컨트롤러는 늦게 도착한 이전 응답을 무시한다', () async {
+    final repository = ControlledStationSearchRepository();
+    final controller = StationSearchController(repository: repository);
+
+    final firstSearch = controller.search('상록수');
+    final secondSearch = controller.search('강남');
+
+    expect(repository.requestedQueries, ['상록수', '강남']);
+
+    repository.complete('강남', [
+      _stationResult(id: 'station-gangnam', name: '강남'),
+    ]);
+    await secondSearch;
+
+    expect(controller.state.status, StationSearchStatus.success);
+    expect(controller.state.results.single.nameKo, '강남');
+
+    repository.complete('상록수', [
+      _stationResult(id: 'station-sangnoksu', name: '상록수'),
+    ]);
+    await firstSearch;
+
+    expect(controller.state.status, StationSearchStatus.success);
+    expect(controller.state.results.single.nameKo, '강남');
+  });
+
+  test('역 검색 컨트롤러는 늦게 도착한 이전 검색어를 최근 검색에 기록하지 않는다', () async {
+    final repository = ControlledStationSearchRepository();
+    final historyRepository = FakeSearchHistoryRepository();
+    final controller = StationSearchController(
+      repository: repository,
+      searchHistoryRepository: historyRepository,
+    );
+
+    final firstSearch = controller.search('상록수');
+    final secondSearch = controller.search('강남');
+
+    repository.complete('강남', [
+      _stationResult(id: 'station-gangnam', name: '강남'),
+    ]);
+    await secondSearch;
+    repository.complete('상록수', [
+      _stationResult(id: 'station-sangnoksu', name: '상록수'),
+    ]);
+    await firstSearch;
+
+    expect(historyRepository.recordedQueries, ['강남']);
+  });
+
+  test('역 검색 컨트롤러는 빈 결과와 실패 상태를 표시한다', () async {
+    final repository = FakeStationSearchRepository();
+    final controller = StationSearchController(repository: repository);
+
+    await controller.search('없는역');
+
+    expect(controller.state.status, StationSearchStatus.empty);
+    expect(controller.state.message, '검색 결과가 없습니다.');
+
+    repository.error = const StationSearchException('역 정보를 불러오지 못했어요.');
+
+    await controller.search('상록수');
+
+    expect(controller.state.status, StationSearchStatus.failure);
+    expect(controller.state.message, '역 정보를 불러오지 못했어요.');
+  });
+
+  test('역 검색 컨트롤러는 현재 위치 주변 역을 거리와 함께 표시한다', () async {
+    final repository = FakeStationSearchRepository()
+      ..nextNearbyResults = [
+        _stationResult(
+          id: 'station-sangnoksu',
+          name: '상록수',
+          distanceMeters: 230,
+        ),
+      ];
+    final locationProvider = FakeCurrentLocationProvider(
+      location: CurrentLocation(
+        latitude: 37.3028,
+        longitude: 126.8665,
+        accuracyMeters: 25,
+        measuredAt: DateTime.now(),
+        provider: 'gps',
+        permissionPrecision: LocationPermissionPrecision.precise,
+      ),
+    );
+    final controller = StationSearchController(repository: repository);
+
+    await controller.searchNearby(locationProvider);
+
+    expect(locationProvider.requestCount, 1);
+    expect(repository.requestedNearbyLocations.single.latitude, 37.3028);
+    expect(repository.requestedNearbyLocations.single.longitude, 126.8665);
+    expect(controller.state.status, StationSearchStatus.success);
+    expect(controller.state.results.single.distanceLabel, '현재 위치에서 230m');
+  });
+
+  test('역 검색 컨트롤러는 정확도 정보가 없는 기존 위치 응답을 주변역 검색에 쓰지 않는다', () async {
+    final repository = FakeStationSearchRepository();
+    final locationProvider = FakeCurrentLocationProvider(
+      location: const CurrentLocation(latitude: 37.3028, longitude: 126.8665),
+    );
+    final controller = StationSearchController(repository: repository);
+    var notificationCount = 0;
+    controller.addListener(() {
+      notificationCount++;
+    });
+
+    await controller.searchNearby(locationProvider);
+
+    expect(locationProvider.requestCount, 1);
+    expect(repository.requestedNearbyLocations, isEmpty);
+    expect(controller.state.status, StationSearchStatus.failure);
+    expect(
+      controller.state.message,
+      '현재 위치 정확도 정보를 확인하지 못했어요. 출발역을 직접 선택해 주세요.',
+    );
+    expect(notificationCount, 2);
+  });
+
+  test('역 검색 컨트롤러는 오래된 위치를 주변역 검색에 쓰지 않는다', () async {
+    final repository = FakeStationSearchRepository();
+    final locationProvider = FakeCurrentLocationProvider(
+      location: CurrentLocation(
+        latitude: 37.3028,
+        longitude: 126.8665,
+        accuracyMeters: 25,
+        measuredAt: DateTime.now().subtract(const Duration(minutes: 20)),
+        provider: 'gps',
+        permissionPrecision: LocationPermissionPrecision.precise,
+      ),
+    );
+    final controller = StationSearchController(repository: repository);
+
+    await controller.searchNearby(locationProvider);
+
+    expect(repository.requestedNearbyLocations, isEmpty);
+    expect(controller.state.status, StationSearchStatus.failure);
+    expect(
+      controller.state.message,
+      '현재 위치가 오래되어 가까운 역을 정확히 찾기 어려워요. 출발역을 직접 선택해 주세요.',
+    );
+  });
+
+  test('역 검색 컨트롤러는 낮은 정확도와 모의 위치를 서로 다른 안내 문구로 막는다', () async {
+    final coarseRepository = FakeStationSearchRepository();
+    final coarseController = StationSearchController(
+      repository: coarseRepository,
+    );
+
+    await coarseController.searchNearby(
+      FakeCurrentLocationProvider(
+        location: CurrentLocation(
+          latitude: 37.3028,
+          longitude: 126.8665,
+          accuracyMeters: 1200,
+          measuredAt: DateTime.now(),
+          provider: 'network',
+          permissionPrecision: LocationPermissionPrecision.approximate,
+        ),
+      ),
+    );
+
+    expect(coarseRepository.requestedNearbyLocations, isEmpty);
+    expect(
+      coarseController.state.message,
+      '현재 위치 정확도가 낮아 가까운 역을 정확히 찾기 어려워요. 출발역을 직접 선택해 주세요.',
+    );
+
+    final mockedRepository = FakeStationSearchRepository();
+    final mockedController = StationSearchController(
+      repository: mockedRepository,
+    );
+
+    await mockedController.searchNearby(
+      FakeCurrentLocationProvider(
+        location: CurrentLocation(
+          latitude: 37.3028,
+          longitude: 126.8665,
+          accuracyMeters: 20,
+          measuredAt: DateTime.now(),
+          provider: 'gps',
+          isMocked: true,
+          permissionPrecision: LocationPermissionPrecision.precise,
+        ),
+      ),
+    );
+
+    expect(mockedRepository.requestedNearbyLocations, isEmpty);
+    expect(
+      mockedController.state.message,
+      '모의 위치는 가까운 역 찾기에 사용할 수 없어요. 출발역을 직접 선택해 주세요.',
+    );
+  });
+
+  test('역 검색 컨트롤러는 위치 조회 실패를 쉬운 문구로 표시한다', () async {
+    final repository = FakeStationSearchRepository();
+    final locationProvider = FakeCurrentLocationProvider(
+      error: const CurrentLocationException('위치 권한을 확인해 주세요.'),
+    );
+    final controller = StationSearchController(repository: repository);
+
+    await controller.searchNearby(locationProvider);
+
+    expect(locationProvider.requestCount, 1);
+    expect(repository.requestedNearbyLocations, isEmpty);
+    expect(controller.state.status, StationSearchStatus.failure);
+    expect(controller.state.message, '현재 위치를 사용할 수 없어요.');
+  });
+
+  test('역 검색 컨트롤러는 주변 검색 중 화면이 닫히면 늦은 응답을 알리지 않는다', () async {
+    final repository = ControlledNearbyStationSearchRepository();
+    final controller = StationSearchController(repository: repository);
+
+    final searchFuture = controller.searchNearby(
+      FakeCurrentLocationProvider(
+        location: CurrentLocation(
+          latitude: 37.3028,
+          longitude: 126.8665,
+          accuracyMeters: 25,
+          measuredAt: DateTime.now(),
+          provider: 'gps',
+          permissionPrecision: LocationPermissionPrecision.precise,
+        ),
+      ),
+    );
+    await Future<void>.delayed(Duration.zero);
+
+    expect(repository.requestedNearbyLocations, hasLength(1));
+    expect(controller.state.status, StationSearchStatus.loading);
+
+    controller.dispose();
+    repository.complete([_stationResult(id: 'station-sangnoksu', name: '상록수')]);
+    await searchFuture;
+  });
+
+  test('역 상세 컨트롤러는 상세와 출구와 시설 요청을 동시에 시작한다', () async {
+    final repository = ControlledStationDetailRepository();
+    final controller = StationDetailController(repository: repository);
+    addTearDown(controller.dispose);
+
+    final loadFuture = controller.load('station-sangnoksu');
+
+    expect(repository.requestedDetailStationIds, ['station-sangnoksu']);
+    expect(repository.requestedExitStationIds, ['station-sangnoksu']);
+    expect(repository.requestedFacilityStationIds, ['station-sangnoksu']);
+    expect(controller.state.status, StationDetailStatus.loading);
+
+    repository.completeAll();
+    await loadFuture;
+    await waitForRealtimeSnapshotStatus(
+      controller,
+      RealtimeSnapshotStatus.unavailable,
+    );
+
+    expect(controller.state.status, StationDetailStatus.success);
+    expect(controller.state.detail?.nameKo, '상록수');
+    expect(controller.state.exits.single.name, '1번 출구');
+    expect(controller.state.facilities.single.name, '1번 출구 엘리베이터');
+  });
+
+  test('역 상세 컨트롤러는 늦은 이전 역 응답으로 현재 역을 덮지 않는다', () async {
+    final repository = MultiStationDetailRepository();
+    final controller = StationDetailController(repository: repository);
+    addTearDown(controller.dispose);
+
+    final oldLoad = controller.load('station-sangnoksu');
+    final currentLoad = controller.load('station-sadang');
+
+    repository.complete('station-sadang', name: '사당');
+    await currentLoad;
+    expect(controller.state.detail?.id, 'station-sadang');
+
+    repository.complete('station-sangnoksu', name: '상록수');
+    await oldLoad;
+
+    expect(controller.state.detail?.id, 'station-sadang');
+    expect(controller.state.detail?.nameKo, '사당');
+  });
+
+  test('역 상세 컨트롤러는 늦은 이전 역 예기치 않은 실패로 현재 역을 덮지 않는다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final repository = MultiStationDetailRepository();
+    final controller = StationDetailController(repository: repository);
+    addTearDown(controller.dispose);
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      final oldLoad = controller.load('station-sangnoksu');
+      final currentLoad = controller.load('station-sadang');
+
+      repository.complete('station-sadang', name: '사당');
+      await currentLoad;
+
+      repository.failUnexpected('station-sangnoksu');
+      await oldLoad;
+    });
+
+    expect(reportedErrors, hasLength(1));
+    expect(controller.state.detail?.id, 'station-sadang');
+    expect(controller.state.detail?.nameKo, '사당');
+  });
+
+  test('역 상세 컨트롤러는 실시간 도착 실패와 정적 역 정보를 분리한다', () async {
+    final repository = ControlledStationDetailRepository();
+    final controller = StationDetailController(
+      repository: repository,
+      realtimeRepository: const FailingRealtimeRepository(),
+    );
+    addTearDown(controller.dispose);
+
+    final loadFuture = controller.load('station-sangnoksu');
+    repository.completeAll();
+    await loadFuture;
+
+    expect(controller.state.status, StationDetailStatus.success);
+    expect(controller.state.detail?.nameKo, '상록수');
+    expect(
+      controller.state.realtimeSnapshot.status,
+      RealtimeSnapshotStatus.unavailable,
+    );
+    expect(
+      controller.state.realtimeSnapshot.message,
+      contains('역 정보와 경로 검색은 계속 이용'),
+    );
+  });
+
+  test('역 상세 컨트롤러는 실시간 도착 요약을 성공 상태에 포함한다', () async {
+    final repository = ControlledStationDetailRepository();
+    final controller = StationDetailController(
+      repository: repository,
+      realtimeRepository: const StaticRealtimeRepository(),
+    );
+    addTearDown(controller.dispose);
+
+    final loadFuture = controller.load('station-sangnoksu');
+    repository.completeAll();
+    await loadFuture;
+    await waitForRealtimeSnapshotStatus(
+      controller,
+      RealtimeSnapshotStatus.fresh,
+    );
+
+    expect(controller.state.status, StationDetailStatus.success);
+    expect(controller.state.realtimeSnapshot.summaryText, '상록수 3분 후');
+  });
+
+  test('역 상세 컨트롤러는 실시간 응답 전에도 정적 상세를 먼저 보여 준다', () async {
+    final repository = ControlledStationDetailRepository();
+    final realtimeRepository = DelayedRealtimeRepository();
+    final controller = StationDetailController(
+      repository: repository,
+      realtimeRepository: realtimeRepository,
+    );
+    addTearDown(controller.dispose);
+
+    final loadFuture = controller.load('station-sangnoksu');
+    repository.completeAll();
+    await realtimeRepository.requestStarted.future;
+
+    expect(controller.state.status, StationDetailStatus.success);
+    expect(controller.state.detail?.nameKo, '상록수');
+    expect(
+      controller.state.realtimeSnapshot.status,
+      RealtimeSnapshotStatus.loading,
+    );
+
+    realtimeRepository.complete(const RealtimeSnapshot.unavailable());
+    await loadFuture;
+
+    expect(
+      controller.state.realtimeSnapshot.status,
+      RealtimeSnapshotStatus.unavailable,
+    );
+  });
+
+  test('역 상세 컨트롤러는 실시간 대기 중 dispose되면 늦은 응답을 알리지 않는다', () async {
+    final repository = ControlledStationDetailRepository();
+    final realtimeRepository = DelayedRealtimeRepository();
+    final controller = StationDetailController(
+      repository: repository,
+      realtimeRepository: realtimeRepository,
+    );
+
+    final loadFuture = controller.load('station-sangnoksu');
+    repository.completeAll();
+    await realtimeRepository.requestStarted.future;
+
+    controller.dispose();
+    realtimeRepository.complete(const RealtimeSnapshot.unavailable());
+    await loadFuture;
+  });
+
+  test('역 상세 컨트롤러는 처리된 역 정보 실패를 오류 경계에 다시 보고하지 않는다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final repository = FailingStationDetailRepository();
+    final controller = StationDetailController(repository: repository);
+    addTearDown(controller.dispose);
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await controller.load('station-sangnoksu');
+    });
+
+    expect(reportedErrors, isEmpty);
+    expect(controller.state.status, StationDetailStatus.failure);
+    expect(controller.state.message, '역 안내를 불러오지 못했어요.');
+  });
+
+  test('역 상세 상태는 확인이 필요한 시설을 먼저 보여 주고 짧은 요약을 만든다', () {
+    final state = StationDetailState(
+      status: StationDetailStatus.success,
+      detail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      facilities: [
+        _stationFacility(),
+        _stationFacility(
+          id: 'facility-sangnoksu-ramp-1',
+          name: '1번 출구 경사로',
+          status: 'UNDER_CONSTRUCTION',
+        ),
+        _stationFacility(
+          id: 'facility-sangnoksu-call-bell-1',
+          name: '비상벨',
+          status: 'NEW_BACKEND_STATUS',
+        ),
+        _stationFacility(
+          id: 'facility-sangnoksu-elevator-2',
+          name: '2번 출구 엘리베이터',
+          status: 'BROKEN',
+        ),
+      ],
+    );
+
+    expect(state.prioritizedFacilities.map((facility) => facility.name), [
+      '2번 출구 엘리베이터',
+      '1번 출구 경사로',
+      '1번 출구 엘리베이터',
+      '비상벨',
+    ]);
+    expect(state.facilityAttentionSummary, '고장·폐쇄 1개, 가기 전 살펴보기 1개');
+    expect(
+      state.facilityAttentionSemanticLabel,
+      '살펴볼 시설, 고장·폐쇄 1개, 가기 전 살펴보기 1개',
+    );
+  });
+
+  test('역 상세 상태는 살펴볼 시설이 없을 때 쉬운 문구를 만든다', () {
+    final state = StationDetailState(
+      status: StationDetailStatus.success,
+      detail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      facilities: [
+        _stationFacility(
+          id: 'facility-sangnoksu-elevator-1',
+          name: '1번 출구 엘리베이터',
+          status: 'NORMAL',
+        ),
+      ],
+    );
+
+    expect(state.facilityAttentionSummary, '');
+    expect(state.facilityAttentionSemanticLabel, '다시 볼 시설이 없어요');
+  });
+
+  test('역 상세 상태는 쉬운 역 안 이동 안내 요약을 만든다', () {
+    final state = StationDetailState(
+      status: StationDetailStatus.success,
+      detail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      exits: [
+        _stationExit(
+          id: 'exit-sangnoksu-1',
+          name: '1번 출구',
+          hasElevatorConnection: true,
+        ),
+        _stationExit(
+          id: 'exit-sangnoksu-2',
+          name: '2번 출구',
+          hasElevatorConnection: false,
+          hasStairOnlyPath: StairOnlyPathStatus.present,
+        ),
+      ],
+      facilities: [
+        _stationFacility(
+          id: 'facility-sangnoksu-elevator-1',
+          name: '1번 출구 엘리베이터',
+          type: 'ELEVATOR',
+          exitId: 'exit-sangnoksu-1',
+        ),
+        _stationFacility(
+          id: 'facility-sangnoksu-toilet-1',
+          name: '장애인 화장실',
+          type: 'ACCESSIBLE_TOILET',
+          exitId: '',
+          status: 'BROKEN',
+        ),
+      ],
+    );
+
+    expect(state.layoutSummaryItems.map((item) => item.text), [
+      '1번 출구',
+      '엘리베이터',
+      '장애인 화장실',
+      '승강장',
+    ]);
+    expect(
+      state.layoutSummarySemanticLabel,
+      '역 안 이동 안내, 1번 출구, 엘리베이터, 장애인 화장실, 승강장',
+    );
+  });
+
+  test('역 상세 즐겨찾기 컨트롤러는 저장과 해제를 순서대로 처리한다', () async {
+    final repository = FakeFavoriteStationRepository();
+    final controller = StationFavoriteToggleController(
+      repository: repository,
+      stationId: 'station-sangnoksu',
+    );
+
+    await controller.save();
+
+    expect(repository.savedStationIds, ['station-sangnoksu']);
+    expect(controller.state.isFavorite, isTrue);
+    expect(controller.state.message, '즐겨찾기에 저장했습니다.');
+
+    await controller.remove();
+
+    expect(repository.removedStationIds, ['station-sangnoksu']);
+    expect(controller.state.isFavorite, isFalse);
+    expect(controller.state.message, '즐겨찾기에서 해제했습니다.');
+  });
+
+  test('시설 정보는 백엔드 enum 값을 쉬운 라벨과 스크린리더 문구로 바꾼다', () {
+    withClock(Clock.fixed(DateTime(2026, 6, 15)), () {
+      const ramp = StationFacilityInfo(
+        id: 'facility-ramp-1',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-sangnoksu-1',
+        type: 'RAMP',
+        name: '1번 출구 경사로',
+        floorFrom: '1F',
+        floorTo: 'B1',
+        description: '',
+        status: 'UNDER_CONSTRUCTION',
+        dataConfidence: 'NEEDS_VERIFICATION',
+        lastUpdatedAt: '2026-06-13',
+      );
+      const customerCenter = StationFacilityInfo(
+        id: 'facility-center-1',
+        stationId: 'station-sangnoksu',
+        exitId: '',
+        type: 'CUSTOMER_CENTER',
+        name: '고객센터',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '개찰구 옆',
+        status: 'ADMIN_VERIFIED',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-06-13',
+        fieldValidationStatus: ' verified ',
+      );
+      const uncheckedDescription = StationFacilityInfo(
+        id: 'facility-escalator-1',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-sangnoksu-1',
+        type: 'ESCALATOR',
+        name: '1번 출구 에스컬레이터',
+        floorFrom: '',
+        floorTo: '',
+        description: '현장 검증 전 이동 보조 시설',
+        status: 'NORMAL',
+        dataConfidence: 'LOW',
+        lastUpdatedAt: '2026-06-13',
+      );
+      const metadataOnlyDescription = StationFacilityInfo(
+        id: 'facility-elevator-1',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-sangnoksu-1',
+        type: 'ELEVATOR',
+        name: '1번 출구 엘리베이터',
+        floorFrom: 'B1',
+        floorTo: '1F',
+        description: '현장 검증됨',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-06-13',
+      );
+
+      expect(ramp.typeLabel, '경사로');
+      expect(ramp.statusLabel, '공사 중');
+      expect(ramp.severityLabel, '가기 전 살펴보기');
+      expect(ramp.nextActionLabel, '역무원 도움 요청');
+      expect(ramp.confidenceLabel, '');
+      expect(ramp.statusTitle, '가기 전에 확인해 주세요');
+      expect(
+        ramp.semanticLabel,
+        '1번 출구 경사로, 경사로, 가기 전에 확인해 주세요, 1F-B1, 최근 확인 2일 전, 역무원 도움 요청',
+      );
+      expect(customerCenter.typeLabel, '고객센터');
+      expect(customerCenter.statusLabel, '확인 완료');
+      expect(customerCenter.severityLabel, '정상');
+      expect(customerCenter.fieldValidationLabel, '');
+      expect(customerCenter.statusTitle, '정상 운행');
+      expect(customerCenter.semanticLabel, isNot(contains('정보 신뢰도')));
+      expect(customerCenter.semanticLabel, isNot(contains('현장 검증')));
+      expect(customerCenter.semanticLabel, isNot(contains('출처')));
+      expect(_stationFacility(status: 'UNKNOWN').statusLabel, '정상 운행');
+      expect(uncheckedDescription.locationLabel, '이동 보조 시설');
+      expect(uncheckedDescription.semanticLabel, isNot(contains('현장 검증')));
+      expect(metadataOnlyDescription.locationLabel, 'B1-1F');
+
+      final uninstalledWithLogDesc = _stationFacility(
+        description:
+            '광주교통공사 역사별 장애인 편의시설 현황 기준 휠체어리프트 미설치(count=0) 기록이며 실시간 운행 상태가 아닙니다.',
+      );
+      expect(uninstalledWithLogDesc.locationLabel, '미설치');
+
+      final uninstalledShortLogDesc = _stationFacility(
+        description: '휠체어리프트 미설치(count=0)',
+      );
+      expect(uninstalledShortLogDesc.locationLabel, '미설치');
+
+      final installedWithLogDesc = _stationFacility(
+        description:
+            '인천교통공사 역사별 장애인 편의시설 현황 기준 엘리베이터 2대 설치 정보이며 실시간 운행 상태가 아닙니다.',
+      );
+      expect(installedWithLogDesc.locationLabel, '2대 설치');
+    });
+  });
+
+  test('확인 시점 상대 표현은 오늘/어제/n일 전/n주 전 버킷을 만든다', () {
+    withClock(Clock.fixed(DateTime(2026, 6, 15)), () {
+      expect(stationVerifiedRelativeLabel('2026-06-15'), '오늘');
+      expect(stationVerifiedRelativeLabel('2026-06-14'), '어제');
+      expect(stationVerifiedRelativeLabel('2026-06-13'), '2일 전');
+      expect(stationVerifiedRelativeLabel('2026-06-09'), '6일 전');
+      expect(stationVerifiedRelativeLabel('2026-06-08'), '1주 전');
+      expect(stationVerifiedRelativeLabel('2026-05-19'), '3주 전');
+      // 시각 성분이 있어도 날짜 단위로 비교한다.
+      expect(stationVerifiedRelativeLabel('2026-06-14T23:59:00'), '어제');
+    });
+  });
+
+  test('확인 시점 상대 표현은 4주 이상·미래·파싱 불가를 원문으로 둔다', () {
+    withClock(Clock.fixed(DateTime(2026, 6, 15)), () {
+      // 28일 이상은 정확한 날짜로 최신성 저하를 드러낸다.
+      expect(stationVerifiedRelativeLabel('2026-05-18'), '2026-05-18');
+      // 시계 오차 등 미래 값은 원문 유지.
+      expect(stationVerifiedRelativeLabel('2026-06-20'), '2026-06-20');
+      // 파싱 불가·빈 값은 그대로.
+      expect(stationVerifiedRelativeLabel('준비 중'), '준비 중');
+      expect(stationVerifiedRelativeLabel('  '), '');
+    });
+  });
+}
+
+List<FlutterErrorDetails> _captureReportedErrors() {
+  return <FlutterErrorDetails>[];
+}
+
+FavoriteStation _favoriteStation({
+  required String id,
+  required String name,
+  String lineId = '',
+}) {
+  return FavoriteStation(
+    userId: 'anonymous-user-1',
+    stationId: id,
+    lineId: lineId,
+    nameKo: name,
+    nameEn: id,
+    region: '수도권',
+    dataQualityLevel: 'LEVEL_1',
+    lastVerifiedAt: '2026-06-12',
+    lines: const [
+      StationSearchLine(
+        id: 'seoul-4',
+        name: '수도권 4호선',
+        color: '#00A5DE',
+        stationCode: '448',
+      ),
+    ],
+    addedAt: '2026-06-13T10:00:00',
+  );
+}
+
+StationSearchResult _stationResult({
+  required String id,
+  required String name,
+  int? distanceMeters,
+}) {
+  return StationSearchResult(
+    id: id,
+    nameKo: name,
+    nameEn: id,
+    region: '수도권',
+    dataQualityLevel: 'LEVEL_1',
+    lastVerifiedAt: '2026-06-12',
+    distanceMeters: distanceMeters,
+    lines: const [
+      StationSearchLine(
+        id: 'seoul-2',
+        name: '수도권 2호선',
+        color: '#00A84D',
+        stationCode: '222',
+      ),
+    ],
+  );
+}
+
+StationDetail _stationDetail({required String id, required String name}) {
+  return StationDetail(
+    id: id,
+    nameKo: name,
+    nameEn: id,
+    region: '수도권',
+    dataQualityLevel: 'LEVEL_1',
+    lastVerifiedAt: '2026-06-12',
+    lines: const [
+      StationSearchLine(
+        id: 'seoul-4',
+        name: '수도권 4호선',
+        color: '#00A5DE',
+        stationCode: '448',
+      ),
+    ],
+  );
+}
+
+StationExitInfo _stationExit({
+  String id = 'exit-sangnoksu-1',
+  String name = '1번 출구',
+  bool hasElevatorConnection = true,
+  StairOnlyPathStatus hasStairOnlyPath = StairOnlyPathStatus.unknown,
+}) {
+  return StationExitInfo(
+    id: id,
+    stationId: 'station-sangnoksu',
+    exitNumber: '1',
+    name: name,
+    hasElevatorConnection: hasElevatorConnection,
+    hasStairOnlyPath: hasStairOnlyPath,
+    dataConfidence: 'HIGH',
+  );
+}
+
+StationFacilityInfo _stationFacility({
+  String id = 'facility-sangnoksu-elevator-1',
+  String name = '1번 출구 엘리베이터',
+  String type = 'ELEVATOR',
+  String exitId = 'exit-sangnoksu-1',
+  String status = 'NORMAL',
+  String description = '1번 출구와 대합실을 연결합니다.',
+}) {
+  return StationFacilityInfo(
+    id: id,
+    stationId: 'station-sangnoksu',
+    exitId: exitId,
+    type: type,
+    name: name,
+    floorFrom: '지상',
+    floorTo: '대합실',
+    description: description,
+    status: status,
+    dataConfidence: 'HIGH',
+    lastUpdatedAt: '2026-06-12',
+  );
+}
+
+class FakeStationSearchRepository
+    implements StationSearchRepository, StationLineFilterRepository {
+  final requestedQueries = <String>[];
+  final requestedLineIds = <String?>[];
+  final requestedNearbyLocations = <CurrentLocation>[];
+  List<SubwayLineOption> lineOptions = const [];
+  Object? error;
+  List<StationSearchResult> nextResults = const [];
+  List<StationSearchResult> nextNearbyResults = const [];
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) async {
+    requestedQueries.add(query);
+    requestedLineIds.add(null);
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    return nextResults;
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchStationsOnLine(
+    String query,
+    String lineId, {
+    String? region,
+  }) async {
+    requestedQueries.add(query);
+    requestedLineIds.add(lineId);
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    return nextResults;
+  }
+
+  @override
+  Future<List<SubwayLineOption>> listLines() async {
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    return lineOptions;
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) async {
+    requestedNearbyLocations.add(location);
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    return nextNearbyResults;
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
+    throw UnimplementedError();
+  }
+}
+
+class ControlledStationSearchRepository implements StationSearchRepository {
+  final requestedQueries = <String>[];
+  final _pending = <String, Completer<List<StationSearchResult>>>{};
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    requestedQueries.add(query);
+    final completer = Completer<List<StationSearchResult>>();
+    _pending[query] = completer;
+    return completer.future;
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
+    throw UnimplementedError();
+  }
+
+  void complete(String query, List<StationSearchResult> results) {
+    final completer = _pending.remove(query);
+    if (completer == null) {
+      throw StateError('Pending search not found: $query');
+    }
+    completer.complete(results);
+  }
+}
+
+class FakeSearchHistoryRepository implements SearchHistoryRepository {
+  final recordedQueries = <String>[];
+
+  @override
+  Future<void> recordSearch(
+    String query, {
+    String? region,
+    String? stationId,
+    StationSearchLine? line,
+  }) async {
+    recordedQueries.add(query);
+  }
+
+  @override
+  Future<List<String>> listRecentQueries() async {
+    return recordedQueries.reversed.toList(growable: false);
+  }
+
+  @override
+  Future<List<RecentSearchEntry>> listRecentEntries({
+    String? region,
+    int limit = 10,
+  }) async {
+    final now = DateTime.now();
+    var offset = recordedQueries.length;
+    return [
+      for (final query in recordedQueries.reversed)
+        RecentStationSearchEntry(
+          query: query,
+          region: region,
+          searchedAt: now.subtract(Duration(microseconds: offset--)),
+        ),
+    ].take(limit).toList(growable: false);
+  }
+
+  @override
+  Future<void> recordRouteSearch(RecentRouteSearchEntry entry) async {}
+
+  @override
+  Future<void> removeSearch(String query, {String? region}) async {
+    recordedQueries.remove(query.trim());
+  }
+
+  @override
+  Future<void> removeRouteSearch(RecentRouteSearchEntry entry) async {}
+
+  @override
+  Future<void> clearSearches() async {
+    recordedQueries.clear();
+  }
+}
+
+class ControlledNearbyStationSearchRepository
+    implements StationSearchRepository {
+  final requestedNearbyLocations = <CurrentLocation>[];
+  final _nearbyCompleter = Completer<List<StationSearchResult>>();
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) {
+    requestedNearbyLocations.add(location);
+    return _nearbyCompleter.future;
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
+    throw UnimplementedError();
+  }
+
+  void complete(List<StationSearchResult> results) {
+    _nearbyCompleter.complete(results);
+  }
+}
+
+Future<void> waitForRealtimeSnapshotStatus(
+  StationDetailController controller,
+  RealtimeSnapshotStatus status,
+) async {
+  if (controller.state.realtimeSnapshot.status == status) {
+    return;
+  }
+  final completer = Completer<void>();
+  void listener() {
+    if (controller.state.realtimeSnapshot.status == status) {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+  }
+
+  controller.addListener(listener);
+  try {
+    await completer.future.timeout(
+      const Duration(seconds: 1),
+      onTimeout: () {},
+    );
+  } finally {
+    controller.removeListener(listener);
+  }
+}
+
+class ControlledStationDetailRepository implements StationSearchRepository {
+  final requestedDetailStationIds = <String>[];
+  final requestedExitStationIds = <String>[];
+  final requestedFacilityStationIds = <String>[];
+  final _detailCompleter = Completer<StationDetail>();
+  final _exitsCompleter = Completer<List<StationExitInfo>>();
+  final _facilitiesCompleter = Completer<List<StationFacilityInfo>>();
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) {
+    requestedDetailStationIds.add(stationId);
+    return _detailCompleter.future;
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) {
+    requestedExitStationIds.add(stationId);
+    return _exitsCompleter.future;
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
+    requestedFacilityStationIds.add(stationId);
+    return _facilitiesCompleter.future;
+  }
+
+  void completeAll() {
+    _detailCompleter.complete(
+      _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+    );
+    _exitsCompleter.complete([_stationExit()]);
+    _facilitiesCompleter.complete([_stationFacility()]);
+  }
+}
+
+class MultiStationDetailRepository implements StationSearchRepository {
+  final _details = <String, Completer<StationDetail>>{};
+  final _exits = <String, Completer<List<StationExitInfo>>>{};
+  final _facilities = <String, Completer<List<StationFacilityInfo>>>{};
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) {
+    return _details.putIfAbsent(stationId, Completer<StationDetail>.new).future;
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) {
+    return _exits
+        .putIfAbsent(stationId, Completer<List<StationExitInfo>>.new)
+        .future;
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
+    return _facilities
+        .putIfAbsent(stationId, Completer<List<StationFacilityInfo>>.new)
+        .future;
+  }
+
+  void complete(String stationId, {required String name}) {
+    _details[stationId]!.complete(_stationDetail(id: stationId, name: name));
+    _exits[stationId]!.complete(const []);
+    _facilities[stationId]!.complete(const []);
+  }
+
+  void failUnexpected(String stationId) {
+    _details[stationId]!.completeError(
+      StateError('unexpected station detail failure'),
+    );
+    _exits[stationId]!.complete(const []);
+    _facilities[stationId]!.complete(const []);
+  }
+}
+
+class FailingStationDetailRepository implements StationSearchRepository {
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) async {
+    return const [];
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) async {
+    return const [];
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) async {
+    throw const StationSearchException('역 정보를 불러오지 못했어요.');
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) async {
+    return const [];
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(
+    String stationId,
+  ) async {
+    return const [];
+  }
+}
+
+class StaticRealtimeRepository implements RealtimeRepository {
+  const StaticRealtimeRepository();
+
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) async {
+    return const RealtimeSnapshot(
+      status: RealtimeSnapshotStatus.fresh,
+      receivedAt: '2026-06-26T08:00:00Z',
+      arrivals: [
+        RealtimeArrival(
+          lineId: 'seoul-4',
+          stationName: '상록수',
+          destination: '오이도',
+          direction: '하행',
+          trainNo: '4001',
+          etaSeconds: 180,
+          message: '3분 후',
+        ),
+      ],
+    );
+  }
+}
+
+class DelayedRealtimeRepository implements RealtimeRepository {
+  final requestStarted = Completer<void>();
+  final _snapshotCompleter = Completer<RealtimeSnapshot>();
+
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) {
+    if (!requestStarted.isCompleted) {
+      requestStarted.complete();
+    }
+    return _snapshotCompleter.future;
+  }
+
+  void complete(RealtimeSnapshot snapshot) {
+    _snapshotCompleter.complete(snapshot);
+  }
+}
+
+class FailingRealtimeRepository implements RealtimeRepository {
+  const FailingRealtimeRepository();
+
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) async {
+    throw const RealtimeException('실시간 정보를 불러오지 못했어요.');
+  }
+}
+
+class FakeCurrentLocationProvider implements CurrentLocationProvider {
+  FakeCurrentLocationProvider({
+    this.location,
+    this.error,
+    this.needsPermissionRequest = true,
+  });
+
+  final CurrentLocation? location;
+  final Object? error;
+  final bool needsPermissionRequest;
+  int requestCount = 0;
+
+  @override
+  Future<bool> needsLocationPermissionRequest() async {
+    return needsPermissionRequest;
+  }
+
+  @override
+  Future<CurrentLocation> currentLocation() async {
+    requestCount++;
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    return location ??
+        const CurrentLocation(latitude: 37.3028, longitude: 126.8665);
+  }
+
+  @override
+  Future<bool> openLocationSettings() async {
+    return true;
+  }
+}
+
+class FakeFavoriteStationRepository implements FavoriteStationRepository {
+  List<FavoriteStation> favorites = const [];
+  final savedStationIds = <String>[];
+  final savedLineIds = <String?>[];
+  final removedStationIds = <String>[];
+  final removedLineIds = <String?>[];
+  Object? error;
+
+  @override
+  Future<List<FavoriteStation>> listFavoriteStations() async {
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    return favorites;
+  }
+
+  @override
+  Future<FavoriteStation> saveFavoriteStation(
+    String stationId, {
+    String? lineId,
+  }) async {
+    savedStationIds.add(stationId);
+    savedLineIds.add(lineId);
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    final normalizedLineId = (lineId ?? '').trim();
+    final favorite = _favoriteStation(
+      id: stationId,
+      name: '상록수',
+      lineId: normalizedLineId,
+    );
+    favorites = [
+      ...favorites.where(
+        (item) =>
+            !(item.stationId == stationId && item.lineId == normalizedLineId),
+      ),
+      favorite,
+    ];
+    return favorite;
+  }
+
+  @override
+  Future<void> removeFavoriteStation(String stationId, {String? lineId}) async {
+    removedStationIds.add(stationId);
+    removedLineIds.add(lineId);
+    final currentError = error;
+    if (currentError != null) {
+      throw currentError;
+    }
+    final normalizedLineId = (lineId ?? '').trim();
+    if (normalizedLineId.isEmpty) {
+      favorites = favorites
+          .where((favorite) => favorite.stationId != stationId)
+          .toList(growable: false);
+      return;
+    }
+    favorites = favorites
+        .where(
+          (favorite) =>
+              !(favorite.stationId == stationId &&
+                  favorite.lineId == normalizedLineId),
+        )
+        .toList(growable: false);
+  }
+}

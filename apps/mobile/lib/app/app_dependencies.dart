@@ -1,0 +1,702 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
+import '../auth_headers.dart';
+import '../core/database/catalog/catalog_database.dart';
+import '../core/database/user/user_database.dart';
+import '../core/network/api_client.dart';
+import '../features/favorites/favorite_facility.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+import '../features/favorites/data/drift_favorite_repositories.dart';
+import '../features/favorites/domain/favorite_route.dart';
+import '../features/ads/ad_repository.dart';
+import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
+import '../features/facility_report/data/facility_report_api_repository.dart';
+import '../features/facility_report/domain/facility_report_repository.dart';
+import '../features/facility_report/domain/facility_report_request.dart';
+import '../features/facility_report/domain/facility_report_result.dart';
+import '../features/get_off_alarm/data/get_off_alarm_recovery_notice_store.dart';
+import '../features/get_off_alarm/data/get_off_alarm_state_repository.dart';
+import '../features/get_off_alarm/exact_alarm_permission.dart';
+import '../features/get_off_alarm/get_off_alarm_controller.dart';
+import '../features/get_off_alarm/get_off_alarm_notifier.dart';
+import '../features/get_off_alarm/get_off_alarm_reconcile_worker.dart';
+import '../features/network_map/data/drift_network_map_viewport_repository.dart';
+import '../features/preferences/data/drift_notification_settings_repository.dart';
+import '../features/realtime/realtime_repository.dart';
+import '../features/search_history/data/drift_search_history_repository.dart';
+import '../features/service_notice/data/drift_notice_cache_store.dart';
+import '../features/service_notice/data/notice_repository.dart';
+import '../features/stations/data/drift_station_repository.dart';
+import '../features/stations/data/current_location_provider.dart';
+import '../features/stations/data/station_api_repository.dart';
+import '../features/stations/data/server_station_timetable_repository.dart';
+import '../features/stations/data/composite_station_timetable_repository.dart';
+import '../features/stations/data/drift_station_timetable_repository.dart';
+import '../features/stations/domain/station_repositories.dart';
+import '../features/train_search/data/train_search_repository.dart';
+import '../features/train_search/domain/train_search_models.dart';
+import '../features/train_search/domain/train_search_scope_policy.dart';
+import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/data/drift_transfer_guide_repository.dart';
+import '../features/journey/domain/transfer_guide.dart';
+import '../features/journey/data/journey_api_repository.dart';
+import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
+import '../features/journey/domain/journey_repository.dart';
+import '../generated/journey_v3/journey_v3_contract.dart';
+import '../features/network_map/domain/network_map_models.dart';
+import '../features/notifications/notification_settings.dart';
+import '../features/stations/data/station_api_base_uri.dart'
+    show defaultOptionalStationApiBaseUri;
+import '../features/account/user_data_deletion.dart';
+
+class AppDependencies {
+  const AppDependencies({
+    required this.repository,
+    required this.reportRepository,
+    required this.favoriteRepository,
+    required this.favoriteFacilityRepository,
+    required this.favoriteRouteRepository,
+    required this.searchHistoryRepository,
+    required this.networkMapRepository,
+    required this.networkMapViewportRepository,
+    required this.realtimeRepository,
+    required this.notificationRepository,
+    required this.notificationPermissionProvider,
+    required this.locationProvider,
+    required this.trainSearchRepository,
+    required this.userDataDeletionRepository,
+    this.getOffAlarmController,
+    required this.noticeRepository,
+    this.adRepository,
+    required this.journeyRepositoryFactory,
+    required this.journeyAttestor,
+    required this.journeySessionProvider,
+    required this.stationTimetableRepository,
+    this.transferGuideRepository,
+    this._ownedClosers = const [],
+  });
+
+  factory AppDependencies.resolve({
+    StationSearchRepository? repository,
+    FacilityReportRepository? reportRepository,
+    FavoriteStationRepository? favoriteRepository,
+    FavoriteFacilityRepository? favoriteFacilityRepository,
+    FavoriteRouteRepository? favoriteRouteRepository,
+    SearchHistoryRepository? searchHistoryRepository,
+    NetworkMapRepository? networkMapRepository,
+    NetworkMapViewportRepository? networkMapViewportRepository,
+    RealtimeRepository? realtimeRepository,
+    NotificationSettingsRepository? notificationRepository,
+    NotificationPermissionProvider? notificationPermissionProvider,
+    CurrentLocationProvider? locationProvider,
+    TrainSearchRepository? trainSearchRepository,
+    UserDataDeletionRepository? userDataDeletionRepository,
+    NoticeRepository? noticeRepository,
+    AdRepository? adRepository,
+    JourneyRepository? journeyRepository,
+    JourneyV3IntegrityAttestor? journeyAttestor,
+    StationTimetableRepository? stationTimetableRepository,
+    CatalogDatabase? catalogDatabase,
+    UserDatabase? userDatabase,
+    Directory? userDatabaseDirectory,
+    Uri? Function() apiBaseUri = defaultOptionalStationApiBaseUri,
+    @visibleForTesting
+    AuthorizationHeaderProvider? userDataDeletionAuthProvider,
+    required bool enablePushNotifications,
+  }) {
+    Uri? cachedBaseUri;
+    var baseUriResolved = false;
+    Uri? optionalBaseUri() {
+      if (!baseUriResolved) {
+        cachedBaseUri = apiBaseUri();
+        baseUriResolved = true;
+      }
+      return cachedBaseUri;
+    }
+
+    Uri requireBaseUri() {
+      final baseUri = optionalBaseUri();
+      if (baseUri == null) {
+        throw StateError('Release API base URL must be configured.');
+      }
+      return baseUri;
+    }
+
+    final pushNotificationsEnabled =
+        enablePushNotifications ||
+        notificationRepository != null ||
+        notificationPermissionProvider != null;
+    final resolvedNotificationRepository = pushNotificationsEnabled
+        ? notificationRepository ??
+              (userDatabase != null
+                  ? DriftNotificationSettingsRepository(
+                      userDatabase: userDatabase,
+                    )
+                  : _defaultNotificationSettingsRepository(
+                      baseUri: requireBaseUri,
+                      authProvider: null,
+                    ))
+        : null;
+    final resolvedNotificationPermissionProvider = pushNotificationsEnabled
+        ? notificationPermissionProvider
+        : null;
+
+    var closed = false;
+    var closedForce = false;
+    final ownedClosers = <void Function({bool force})>[
+      ({bool force = false}) {
+        closed = true;
+        closedForce = closedForce || force;
+      },
+    ];
+    ApiClient ownApiClient(Uri baseUri) {
+      final client = ApiClient(baseUri: baseUri);
+      if (closed) {
+        client.close(force: closedForce);
+      } else {
+        ownedClosers.add(client.close);
+      }
+      return client;
+    }
+
+    final catalogRepository = catalogDatabase == null
+        ? null
+        : DriftStationRepository(database: catalogDatabase);
+    final StationSearchRepository resolvedStationRepository =
+        repository ??
+        catalogRepository ??
+        (() {
+          final baseUri = requireBaseUri();
+          return StationSearchApiRepository(
+            baseUri: baseUri,
+            apiClient: ownApiClient(baseUri),
+          );
+        })();
+    final resolvedNetworkMapRepository =
+        networkMapRepository ??
+        catalogRepository ??
+        const _UnavailableNetworkMapRepository();
+
+    final resolvedRealtimeRepository =
+        realtimeRepository ??
+        _defaultRealtimeRepository(
+          baseUri: optionalBaseUri,
+          createApiClient: ownApiClient,
+        );
+    JourneyRepository? cachedJourneyRepository = journeyRepository;
+    JourneyRepository resolveJourneyRepository() {
+      final cachedRepository = cachedJourneyRepository;
+      if (cachedRepository != null) return cachedRepository;
+      final journeyBaseUri = optionalBaseUri();
+      return cachedJourneyRepository = journeyBaseUri == null
+          ? const _UnavailableJourneyRepository()
+          : JourneyApiRepository(ownApiClient(journeyBaseUri));
+    }
+
+    final lazyJourneyRepository = _LazyJourneyRepository(
+      resolveJourneyRepository,
+    );
+    final resolvedJourneyAttestor =
+        journeyAttestor ?? JourneyMethodChannelIntegrityAttestor();
+    final resolvedJourneySessionProvider = JourneySessionProvider(
+      repository: lazyJourneyRepository,
+      attestor: resolvedJourneyAttestor,
+    );
+    final resolvedServerStationTimetableRepository =
+        ServerStationTimetableRepository(
+          journeyRepository: lazyJourneyRepository,
+          stationNameResolver: stationDetailNameResolver(
+            resolvedStationRepository,
+          ),
+          sessionProvider: resolvedJourneySessionProvider,
+        );
+    final resolvedStationTimetableRepository =
+        stationTimetableRepository ??
+        (catalogDatabase != null
+            ? CompositeStationTimetableRepository(
+                serverRepository: resolvedServerStationTimetableRepository,
+                localRepository: DriftStationTimetableRepository(
+                  database: catalogDatabase,
+                ),
+              )
+            : resolvedServerStationTimetableRepository);
+
+    final resolvedAdRepository =
+        adRepository ??
+        (() {
+          final owned = AdRepository.lazy(optionalBaseUri);
+          ownedClosers.add(owned.close);
+          return owned;
+        })();
+
+    return AppDependencies(
+      repository: resolvedStationRepository,
+      reportRepository:
+          reportRepository ??
+          _defaultFacilityReportRepository(
+            baseUri: optionalBaseUri,
+            userDatabase: userDatabase,
+            createApiClient: ownApiClient,
+          ),
+      // Keep every consumer behind the same lazy authority.  In particular,
+      // station-timetable/session users and the public factory must not resolve
+      // independently and accidentally expose different transport boundaries.
+      journeyRepositoryFactory: () => lazyJourneyRepository,
+      journeyAttestor: resolvedJourneyAttestor,
+      journeySessionProvider: resolvedJourneySessionProvider,
+      stationTimetableRepository: resolvedStationTimetableRepository,
+      transferGuideRepository: catalogDatabase == null
+          ? null
+          : DriftTransferGuideRepository(database: catalogDatabase),
+      favoriteRepository:
+          favoriteRepository ??
+          (catalogDatabase != null && userDatabase != null
+              ? DriftFavoriteStationRepository(
+                  catalogDatabase: catalogDatabase,
+                  userDatabase: userDatabase,
+                )
+              : null),
+      favoriteFacilityRepository:
+          favoriteFacilityRepository ??
+          (catalogDatabase != null && userDatabase != null
+              ? DriftFavoriteFacilityRepository(
+                  catalogDatabase: catalogDatabase,
+                  userDatabase: userDatabase,
+                )
+              : null),
+      favoriteRouteRepository:
+          favoriteRouteRepository ??
+          (catalogDatabase != null && userDatabase != null
+              ? DriftFavoriteRouteRepository(
+                  catalogDatabase: catalogDatabase,
+                  userDatabase: userDatabase,
+                )
+              : null),
+      searchHistoryRepository:
+          searchHistoryRepository ??
+          (userDatabase == null
+              ? null
+              : DriftSearchHistoryRepository(userDatabase: userDatabase)),
+      networkMapRepository: resolvedNetworkMapRepository,
+      networkMapViewportRepository:
+          networkMapViewportRepository ??
+          (userDatabase == null
+              ? null
+              : DriftNetworkMapViewportRepository(userDatabase: userDatabase)),
+      realtimeRepository: resolvedRealtimeRepository,
+      notificationRepository: resolvedNotificationRepository,
+      notificationPermissionProvider: resolvedNotificationPermissionProvider,
+      locationProvider:
+          locationProvider ?? MethodChannelCurrentLocationProvider(),
+      trainSearchRepository:
+          trainSearchRepository ??
+          _LazyDefaultTrainSearchRepository(optionalBaseUri, ownApiClient),
+      userDataDeletionRepository:
+          userDataDeletionRepository ??
+          _defaultUserDataDeletionRepository(
+            baseUri: requireBaseUri,
+            authProvider: userDataDeletionAuthProvider,
+            userDatabase: userDatabase,
+            userDatabaseDirectory: userDatabaseDirectory,
+            createApiClient: ownApiClient,
+          ),
+      getOffAlarmController: _resolveGetOffAlarmController(
+        userDatabase,
+        resolvedNotificationPermissionProvider,
+      ),
+      noticeRepository:
+          noticeRepository ??
+          (userDatabase == null
+              ? null
+              : _LazyDefaultNoticeRepository(
+                  optionalBaseUri,
+                  userDatabase,
+                  ownApiClient,
+                )),
+      adRepository: resolvedAdRepository,
+      ownedClosers: ownedClosers,
+    );
+  }
+
+  final StationSearchRepository repository;
+  final FacilityReportRepository reportRepository;
+  final FavoriteStationRepository? favoriteRepository;
+  final FavoriteFacilityRepository? favoriteFacilityRepository;
+  final FavoriteRouteRepository? favoriteRouteRepository;
+  final SearchHistoryRepository? searchHistoryRepository;
+  final NetworkMapRepository networkMapRepository;
+  final NetworkMapViewportRepository? networkMapViewportRepository;
+  final RealtimeRepository realtimeRepository;
+  final NotificationSettingsRepository? notificationRepository;
+  final NotificationPermissionProvider? notificationPermissionProvider;
+  final CurrentLocationProvider locationProvider;
+  final TrainSearchRepository trainSearchRepository;
+  final UserDataDeletionRepository? userDataDeletionRepository;
+  final GetOffAlarmController? getOffAlarmController;
+  final TransferGuideRepository? transferGuideRepository;
+  final NoticeRepository? noticeRepository;
+  final AdRepository? adRepository;
+  final JourneyRepository Function() journeyRepositoryFactory;
+  JourneyRepository get journeyRepository => journeyRepositoryFactory();
+  final JourneyV3IntegrityAttestor journeyAttestor;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository stationTimetableRepository;
+  final List<void Function({bool force})> _ownedClosers;
+
+  void close({bool force = false}) {
+    for (final closeClient in _ownedClosers) {
+      closeClient(force: force);
+    }
+  }
+}
+
+class _UnavailableJourneyRepository implements JourneyRepository {
+  const _UnavailableJourneyRepository();
+
+  @override
+  Future<JourneySessionResponse> issueSession(
+    JourneySessionRequest request,
+  ) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.issueJourneySession,
+      'Journey API base URL is unavailable.',
+    );
+  }
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.searchJourneys,
+      'Journey API base URL is unavailable.',
+    );
+  }
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.searchStationTimetables,
+      'Journey API base URL is unavailable.',
+    );
+  }
+
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.profileJourneys,
+      'Journey API base URL is unavailable.',
+    );
+  }
+}
+
+/// Journey authority is optional at bootstrap, but never replaced by a local
+/// timetable source when unavailable. Resolve the API boundary on first use.
+class _LazyJourneyRepository implements JourneyRepository {
+  _LazyJourneyRepository(this._resolveDelegate);
+
+  final JourneyRepository Function() _resolveDelegate;
+
+  @override
+  Future<JourneySessionResponse> issueSession(JourneySessionRequest request) =>
+      _resolveDelegate().issueSession(request);
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) => _resolveDelegate().searchJourneys(request, sessionToken: sessionToken);
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) => _resolveDelegate().searchStationTimetables(
+    request,
+    sessionToken: sessionToken,
+  );
+
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) => _resolveDelegate().profileJourneys(request, sessionToken: sessionToken);
+}
+
+class _LazyDefaultTrainSearchRepository implements TrainSearchRepository {
+  _LazyDefaultTrainSearchRepository(this._baseUri, this._createApiClient);
+
+  final Uri? Function() _baseUri;
+  final ApiClient Function(Uri baseUri) _createApiClient;
+  TrainSearchRepository? _delegate;
+
+  TrainSearchRepository _resolveDelegate() {
+    final cachedDelegate = _delegate;
+    if (cachedDelegate != null) return cachedDelegate;
+    final resolvedBaseUri = _baseUri();
+    return _delegate = resolvedBaseUri == null
+        ? const UnavailableTrainSearchRepository()
+        : ApiTrainSearchRepository(_createApiClient(resolvedBaseUri));
+  }
+
+  @override
+  Future<TrainSearchResult> search(TrainSearchCriteria criteria) =>
+      _resolveDelegate().search(criteria);
+
+  @override
+  Future<List<TrainStation>> stations(
+    String query, {
+    TrainSearchTrainType? type,
+  }) => _resolveDelegate().stations(query, type: type);
+}
+
+/// 공개 공지 API는 선택 기능이라 앱 시작 중 base URL을 강제 평가하지 않는다.
+/// 첫 조회 시점에 base URL을 해소하고, 없으면 조용히 빈 결과를 돌려준다.
+class _LazyDefaultNoticeRepository implements NoticeRepository {
+  _LazyDefaultNoticeRepository(
+    this._baseUri,
+    this._userDatabase,
+    this._createApiClient,
+  );
+
+  final Uri? Function() _baseUri;
+  final UserDatabase _userDatabase;
+  final ApiClient Function(Uri baseUri) _createApiClient;
+  NoticeRepository? _delegate;
+
+  @override
+  Future<ActiveNoticesResult> activeNotices() {
+    return _resolveDelegate().activeNotices();
+  }
+
+  NoticeRepository _resolveDelegate() {
+    final cachedDelegate = _delegate;
+    if (cachedDelegate != null) {
+      return cachedDelegate;
+    }
+    final resolvedBaseUri = _baseUri();
+    final resolvedDelegate = resolvedBaseUri == null
+        ? const _UnavailableNoticeRepository()
+        : ApiNoticeRepository(
+            apiClient: HttpNoticeApiClient(_createApiClient(resolvedBaseUri)),
+            cacheStore: DriftNoticeCacheStore(userDatabase: _userDatabase),
+          );
+    _delegate = resolvedDelegate;
+    return resolvedDelegate;
+  }
+}
+
+class _UnavailableNoticeRepository implements NoticeRepository {
+  const _UnavailableNoticeRepository();
+
+  @override
+  Future<ActiveNoticesResult> activeNotices() async {
+    return const ActiveNoticesResult.unavailable();
+  }
+}
+
+RealtimeRepository _defaultRealtimeRepository({
+  required Uri? Function() baseUri,
+  required ApiClient Function(Uri baseUri) createApiClient,
+}) {
+  return _LazyDefaultRealtimeRepository(baseUri, createApiClient);
+}
+
+class _LazyDefaultRealtimeRepository implements RealtimeRepository {
+  _LazyDefaultRealtimeRepository(this._baseUri, this._createApiClient);
+
+  final Uri? Function() _baseUri;
+  final ApiClient Function(Uri baseUri) _createApiClient;
+  RealtimeRepository? _delegate;
+
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) {
+    return _resolveDelegate().arrivals(query);
+  }
+
+  RealtimeRepository _resolveDelegate() {
+    final cachedDelegate = _delegate;
+    if (cachedDelegate != null) {
+      return cachedDelegate;
+    }
+    final resolvedBaseUri = _baseUri();
+    final resolvedDelegate = resolvedBaseUri == null
+        ? const UnavailableRealtimeRepository()
+        : RealtimeApiRepository(
+            baseUri: resolvedBaseUri,
+            apiClient: _createApiClient(resolvedBaseUri),
+          );
+    _delegate = resolvedDelegate;
+    return resolvedDelegate;
+  }
+}
+
+class _UnavailableNetworkMapRepository implements NetworkMapRepository {
+  const _UnavailableNetworkMapRepository();
+
+  @override
+  Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
+    final selectedRegion = region ?? '수도권';
+    return NetworkMapData(
+      regions: const [
+        NetworkMapRegion(name: '수도권'),
+        NetworkMapRegion(name: '부산'),
+        NetworkMapRegion(name: '광주'),
+        NetworkMapRegion(name: '대구'),
+        NetworkMapRegion(name: '대전'),
+      ],
+      selectedRegion: selectedRegion,
+      lines: const [],
+      stations: const [],
+      edges: const [],
+      positionSources: const [],
+    );
+  }
+}
+
+GetOffAlarmController? _resolveGetOffAlarmController(
+  UserDatabase? userDatabase,
+  NotificationPermissionProvider? notificationPermissionProvider,
+) {
+  if (userDatabase == null) {
+    return null;
+  }
+  final plugin = FlutterLocalNotificationsPlugin();
+  return GetOffAlarmController(
+    notifier: LocalGetOffAlarmNotifier(plugin),
+    permissionGate: PluginExactAlarmPermissionGate(plugin),
+    notificationPermissionProvider:
+        notificationPermissionProvider ??
+        MethodChannelNotificationPermissionProvider(),
+    repository: DriftGetOffAlarmStateRepository(userDatabase: userDatabase),
+    recoveryNoticeStore: DriftGetOffAlarmRecoveryNoticeStore(
+      userDatabase: userDatabase,
+    ),
+    onActivateReconcileWork: registerGetOffAlarmReconcile,
+    onDeactivateReconcileWork: cancelGetOffAlarmReconcile,
+  );
+}
+
+FacilityReportRepository _defaultFacilityReportRepository({
+  required Uri? Function() baseUri,
+  required UserDatabase? userDatabase,
+  required ApiClient Function(Uri baseUri) createApiClient,
+}) {
+  return _LazyDefaultFacilityReportRepository(
+    baseUri,
+    userDatabase,
+    createApiClient,
+  );
+}
+
+class _LazyDefaultFacilityReportRepository implements FacilityReportRepository {
+  _LazyDefaultFacilityReportRepository(
+    this._baseUri,
+    this._userDatabase,
+    this._createApiClient,
+  );
+
+  // 시설 신고 API는 선택 기능이라 앱 시작 중 base URL을 강제 평가하지 않는다.
+  final Uri? Function() _baseUri;
+  final UserDatabase? _userDatabase;
+  final ApiClient Function(Uri baseUri) _createApiClient;
+  FacilityReportRepository? _delegate;
+
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) {
+    return _resolveDelegate().createReport(request);
+  }
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) {
+    return _resolveDelegate().getReport(reportId);
+  }
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() {
+    return _resolveDelegate().listMyReports();
+  }
+
+  FacilityReportRepository _resolveDelegate() {
+    final cachedDelegate = _delegate;
+    if (cachedDelegate != null) {
+      return cachedDelegate;
+    }
+    final resolvedDelegate = _createDelegate();
+    _delegate = resolvedDelegate;
+    return resolvedDelegate;
+  }
+
+  FacilityReportRepository _createDelegate() {
+    final resolvedBaseUri = _baseUri();
+    if (resolvedBaseUri == null) {
+      return const UnavailableFacilityReportRepository();
+    }
+    return FacilityReportApiRepository(
+      baseUri: resolvedBaseUri,
+      apiClient: _createApiClient(resolvedBaseUri),
+      authProvider: null,
+      receiptStore: _userDatabase == null
+          ? null
+          : DriftFacilityReportReceiptStore(userDatabase: _userDatabase),
+    );
+  }
+}
+
+UserDataDeletionRepository? _defaultUserDataDeletionRepository({
+  required Uri Function() baseUri,
+  required AuthorizationHeaderProvider? authProvider,
+  required UserDatabase? userDatabase,
+  required Directory? userDatabaseDirectory,
+  required ApiClient Function(Uri baseUri) createApiClient,
+}) {
+  final localRepository = userDatabase == null
+      ? null
+      : UserDataDeletionLocalRepository(
+          userDatabase: userDatabase,
+          databaseDirectory: userDatabaseDirectory,
+          clearReceiptTokens: () => DriftFacilityReportReceiptStore(
+            userDatabase: userDatabase,
+          ).deleteAllReceiptTokens(),
+        );
+  final remoteRepository = authProvider == null
+      ? null
+      : (() {
+          final resolvedBaseUri = baseUri();
+          return UserDataDeletionApiRepository(
+            baseUri: resolvedBaseUri,
+            apiClient: createApiClient(resolvedBaseUri),
+            authProvider: authProvider,
+          );
+        })();
+  if (remoteRepository != null && localRepository != null) {
+    return UserDataDeletionCompositeRepository(
+      remoteRepository: remoteRepository,
+      localRepository: localRepository,
+    );
+  }
+  return remoteRepository ?? localRepository;
+}
+
+NotificationSettingsRepository? _defaultNotificationSettingsRepository({
+  required Uri Function() baseUri,
+  required AuthorizationHeaderProvider? authProvider,
+}) {
+  if (authProvider == null) {
+    return null;
+  }
+  return NotificationSettingsApiRepository(
+    baseUri: baseUri(),
+    authProvider: authProvider,
+  );
+}

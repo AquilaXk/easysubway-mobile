@@ -1,0 +1,675 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions: {}
+
+# 같은 PR에 새 head가 올라오면 이전 head 검증은 쓸모가 없으므로 PR 실행만 취소한다.
+# main push와 dispatch는 run마다 고유 그룹이라 서로 취소하지 않는다(병합 후 전체 검증 보존).
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # 무거운 lane(host tests·Android 빌드) 실행 여부를 trusted base의 판정기로 정한다.
+  # pull_request에서 바뀐 경로가 모두 skip 가능 경로일 때만 false이고, 그 외(main push·dispatch,
+  # 빈 diff, base에 판정기 없음, 실행 필요 경로 포함)는 전부 true다. 판정표는 mobile-ci-scope 계약 테스트가 고정한다.
+  scope:
+    name: CI scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      run-heavy-lanes: ${{ steps.decide.outputs.run-heavy-lanes }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .nvmrc
+      - name: Decide heavy lane scope
+        id: decide
+        env:
+          SCOPE_EVENT: ${{ github.event_name }}
+          SCOPE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          SCOPE_TESTED_SHA: ${{ github.sha }}
+          SCOPE_TRUSTED_ROOT: ${{ runner.temp }}/mobile-ci-scope-trusted-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [[ "$SCOPE_EVENT" != "pull_request" ]]; then
+            echo "### Mobile CI 실행 범위: ${SCOPE_EVENT} 이벤트는 전체 lane을 실행한다" >> "$GITHUB_STEP_SUMMARY"
+            printf 'run-heavy-lanes=true\nreason=EVENT_NOT_PULL_REQUEST\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! "$SCOPE_BASE_SHA" =~ ^[0-9a-f]{40}$ || ! "$SCOPE_TESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "CI scope SHA is invalid" >&2
+            exit 1
+          fi
+          git cat-file -e "${SCOPE_BASE_SHA}^{commit}"
+          git cat-file -e "${SCOPE_TESTED_SHA}^{commit}"
+          source=tools/ci/mobile-ci-scope.mjs
+          listing="$(git ls-tree "$SCOPE_BASE_SHA" -- "$source")"
+          if [[ -z "$listing" ]]; then
+            echo "### Mobile CI 실행 범위: base에 판정기가 없어 전체 lane을 실행한다" >> "$GITHUB_STEP_SUMMARY"
+            printf 'run-heavy-lanes=true\nreason=TRUSTED_SCOPE_ABSENT_IN_BASE\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          IFS=$'\t' read -r metadata resolved_path <<< "$listing"
+          if [[ ! "$metadata" =~ ^100644\ blob\ [0-9a-f]{40}$ || "$resolved_path" != "$source" ]]; then
+            echo "trusted CI scope blob identity is invalid" >&2
+            exit 1
+          fi
+          if [[ -e "$SCOPE_TRUSTED_ROOT" || -L "$SCOPE_TRUSTED_ROOT" ]]; then
+            echo "trusted CI scope stage path already exists" >&2
+            exit 1
+          fi
+          mkdir "$SCOPE_TRUSTED_ROOT"
+          git show "${SCOPE_BASE_SHA}:${source}" > "$SCOPE_TRUSTED_ROOT/mobile-ci-scope.mjs"
+          node "$SCOPE_TRUSTED_ROOT/mobile-ci-scope.mjs" decide \
+            --event "$SCOPE_EVENT" \
+            --base-sha "$SCOPE_BASE_SHA" \
+            --tested-sha "$SCOPE_TESTED_SHA"
+          if ! grep -Eqx 'run-heavy-lanes=(true|false)' "$GITHUB_OUTPUT"; then
+            echo "trusted CI scope produced no decision" >&2
+            exit 1
+          fi
+
+  # 계약·정적 검사 lane. 경로와 무관하게 항상 실행한다.
+  mobile-contracts:
+    name: Mobile contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .nvmrc
+      - name: Check documentation fragment preflight sync
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            node tools/ci/check-documentation-fragment-sync.mjs --base "${BASE_REF}"
+          else
+            node tools/ci/check-documentation-fragment-sync.mjs --check-all
+          fi
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@5e2f2482b30b0cb3e14e67f89a80c88c659a7c63
+        with:
+          version: 1.3.3
+      - name: Pull locked Journey V3 contract bundle
+        shell: bash
+        env:
+          JOURNEY_PULL_ROOT: ${{ runner.temp }}/journey-v3-contract-pull-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [[ -e "$JOURNEY_PULL_ROOT" || -L "$JOURNEY_PULL_ROOT" ]]; then
+            echo "Journey V3 contract pull root already exists" >&2
+            exit 1
+          fi
+          mkdir "$JOURNEY_PULL_ROOT"
+          journey_contract_subject="$(jq -er '.artifact | if type == "object" and (.repository | type == "string") and (.manifestDigest | type == "string" and test("^sha256:[a-f0-9]{64}$")) then "\(.repository)@\(.manifestDigest)" else error("invalid Journey V3 contract OCI subject") end' contracts/mobile/journey-v3-client.lock.json)"
+          [[ "${journey_contract_subject}" =~ ^ghcr\.io/aquilaxk/easysubway-backend-contracts@sha256:[a-f0-9]{64}$ ]]
+          oras pull "${journey_contract_subject}" --output "$JOURNEY_PULL_ROOT"
+      - name: Stage locked Journey V3 contract
+        shell: bash
+        env:
+          JOURNEY_PULL_ROOT: ${{ runner.temp }}/journey-v3-contract-pull-${{ github.run_id }}-${{ github.run_attempt }}
+          JOURNEY_STAGE_ROOT: ${{ github.workspace }}/build/journey-v3-contract-ci
+        run: |
+          set -euo pipefail
+          node tools/mobile/stage-journey-v3-contract.mjs \
+            --lock contracts/mobile/journey-v3-client.lock.json \
+            --input "$JOURNEY_PULL_ROOT/journey-v3-contract-bundle-v2.json" \
+            --receipt tools/mobile/fixtures/journey-v3-contract-v2/journey-v3-contract-bundle-v2-receipt.json \
+            --output "$JOURNEY_STAGE_ROOT"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+      - name: Generate and verify Journey V3 client
+        shell: bash
+        env:
+          JOURNEY_STAGE_ROOT: ${{ github.workspace }}/build/journey-v3-contract-ci
+          JOURNEY_GENERATED_ROOT: ${{ runner.temp }}/journey-v3-generated-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          umask 077
+          node tools/mobile/generate-journey-v3-client.mjs \
+            --contract-root "$JOURNEY_STAGE_ROOT" \
+            --lock contracts/mobile/journey-v3-client.lock.json \
+            --output-root "$JOURNEY_GENERATED_ROOT" \
+            --receipt "$JOURNEY_GENERATED_ROOT/journey_v3_generation_receipt.json"
+          node tools/mobile/verify-journey-v3-client-drift.mjs \
+            --contract-root "$JOURNEY_STAGE_ROOT" \
+            --lock contracts/mobile/journey-v3-client.lock.json \
+            --generated-root "$JOURNEY_GENERATED_ROOT"
+          node tools/mobile/verify-journey-v3-client-drift.mjs \
+            --contract-root "$JOURNEY_STAGE_ROOT" \
+            --lock contracts/mobile/journey-v3-client.lock.json \
+            --generated-root apps/mobile/lib/generated/journey_v3
+      - name: Stage trusted mobile root import ratchet
+        if: always()
+        env:
+          ROOT_IMPORT_TRUSTED_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          ROOT_IMPORT_TRUSTED_ROOT: ${{ runner.temp }}/mobile-root-import-ratchet-trusted-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          umask 077
+          if [[ ! "$ROOT_IMPORT_TRUSTED_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "trusted root import base SHA is invalid" >&2
+            exit 1
+          fi
+          if [[ -e "$ROOT_IMPORT_TRUSTED_ROOT" || -L "$ROOT_IMPORT_TRUSTED_ROOT" ]]; then
+            echo "trusted root import stage path already exists" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_EVENT_NAME" == "push" && "$(git rev-list --parents -n 1 HEAD)" == "$(git rev-parse HEAD)" ]]; then
+            ROOT_IMPORT_TRUSTED_BASE_SHA="$(git rev-parse HEAD)"
+          fi
+          git cat-file -e "${ROOT_IMPORT_TRUSTED_BASE_SHA}^{commit}"
+          mkdir "$ROOT_IMPORT_TRUSTED_ROOT"
+          mkdir "$ROOT_IMPORT_TRUSTED_ROOT/tools"
+          mkdir "$ROOT_IMPORT_TRUSTED_ROOT/tools/ci"
+          mkdir "$ROOT_IMPORT_TRUSTED_ROOT/tools/ci/lib"
+          for source in \
+            tools/ci/mobile-root-import-ratchet.mjs \
+            tools/ci/lib/mobile-dart-source-graph.mjs \
+            tools/ci/mobile-root-import-policy.json \
+            tools/ci/mobile-root-import-baseline.json
+          do
+            IFS=$'\t' read -r metadata resolved_path <<< "$(git ls-tree "$ROOT_IMPORT_TRUSTED_BASE_SHA" -- "$source")"
+            if [[ ! "$metadata" =~ ^100644\ blob\ [0-9a-f]{40}$ || "$resolved_path" != "$source" ]]; then
+              echo "trusted root import blob identity is invalid" >&2
+              exit 1
+            fi
+            git show "${ROOT_IMPORT_TRUSTED_BASE_SHA}:${source}" > "${ROOT_IMPORT_TRUSTED_ROOT}/${source}"
+          done
+      - name: Analyze mobile root import ratchet
+        id: root_import_ratchet_analyze
+        if: always()
+        env:
+          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ROOT_IMPORT_TRUSTED_RUNNER: ${{ runner.temp }}/mobile-root-import-ratchet-trusted-${{ github.run_id }}-${{ github.run_attempt }}/tools/ci/mobile-root-import-ratchet.mjs
+          ROOT_IMPORT_EVENT: ${{ github.event_name }}
+          ROOT_IMPORT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          ROOT_IMPORT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          ROOT_IMPORT_TESTED_MERGE_SHA: ${{ github.sha }}
+          ROOT_IMPORT_EVENT_REF: ${{ github.ref }}
+          ROOT_IMPORT_PR_NUMBER: ${{ github.event.pull_request.number || 'none' }}
+        run: |
+          node "$ROOT_IMPORT_TRUSTED_RUNNER" analyze \
+            --event "$ROOT_IMPORT_EVENT" \
+            --base-sha "$ROOT_IMPORT_BASE_SHA" \
+            --head-sha "$ROOT_IMPORT_HEAD_SHA" \
+            --tested-merge-sha "$ROOT_IMPORT_TESTED_MERGE_SHA" \
+            --event-ref "$ROOT_IMPORT_EVENT_REF" \
+            --pull-request-number "$ROOT_IMPORT_PR_NUMBER"
+      - name: Upload mobile root import ratchet evidence
+        id: root_import_ratchet_upload
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-root-import-ratchet-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/mobile-root-import-ratchet
+          retention-days: 5
+          if-no-files-found: error
+      - name: Enforce mobile root import ratchet verdict
+        if: always()
+        env:
+          ROOT_IMPORT_TRUSTED_RUNNER: ${{ runner.temp }}/mobile-root-import-ratchet-trusted-${{ github.run_id }}-${{ github.run_attempt }}/tools/ci/mobile-root-import-ratchet.mjs
+        run: |
+          node "$ROOT_IMPORT_TRUSTED_RUNNER" verdict \
+            --analysis-outcome "${{ steps.root_import_ratchet_analyze.outcome }}" \
+            --upload-outcome "${{ steps.root_import_ratchet_upload.outcome }}"
+          cat "$RUNNER_TEMP/mobile-root-import-ratchet/mobile-root-import-summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Fetch exact generic mobile consumer bundle
+        run: |
+          umask 077
+          bundle_url="$(jq -er '.bundle.url' contracts/mobile/generic-mobile-consumer-bundle.lock.json)"
+          bundle_input="${RUNNER_TEMP}/generic-mobile-consumer-bundle-v1.json"
+          curl --fail --silent --show-error --location \
+            --retry 3 --retry-delay 2 --retry-all-errors \
+            --connect-timeout 10 --max-time 60 \
+            --output "${bundle_input}" \
+            "${bundle_url}"
+      - name: Stage exact generic mobile consumer bundle
+        env:
+          BUNDLE_STAGE_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-stage-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          umask 077
+          if [[ -e "$BUNDLE_STAGE_ROOT" || -L "$BUNDLE_STAGE_ROOT" ]]; then
+            echo "generic mobile consumer bundle stage path already exists" >&2
+            exit 1
+          fi
+          mkdir "$BUNDLE_STAGE_ROOT"
+          mkdir "$BUNDLE_STAGE_ROOT/versions"
+          node tools/mobile/stage-generic-mobile-consumer-bundle.mjs \
+            --lock contracts/mobile/generic-mobile-consumer-bundle.lock.json \
+            --bundle "${RUNNER_TEMP}/generic-mobile-consumer-bundle-v1.json" \
+            --fixture-root "$GITHUB_WORKSPACE" \
+            --stage-root "$BUNDLE_STAGE_ROOT"
+      - name: Verify residual consumer snapshots
+        run: sha256sum --check contracts/mobile/consumer-snapshots.sha256
+      - name: Run owned Node checks
+        run: |
+          node --test \
+            tools/ci/audit-mobile-datapack-assets.test.mjs \
+            tools/ci/check-google-play-api-access.test.mjs \
+            tools/ci/filter-mobile-lcov.test.mjs \
+            tools/ci/mobile-cross-feature-boundary-ratchet.test.mjs \
+            tools/ci/mobile-coverage-ratchet.test.mjs \
+            tools/ci/lib/google-play-auth.test.mjs \
+            tools/ci/mobile-changed-path-classifier.test.mjs \
+            tools/ci/mobile-ci-parallel-lanes.test.mjs \
+            tools/ci/mobile-ci-scope.test.mjs \
+            tools/ci/mobile-sonarcloud-workflow.test.mjs \
+            tools/ci/mobile-root-import-ratchet.test.mjs \
+            tools/ci/public-sensitivity-owner-receipt-caller.test.mjs \
+            tools/mobile/check-android-aab-16kb-page-size.test.mjs \
+            tools/mobile/datapack-contract.test.mjs \
+            tools/mobile/play-installed-release-contract.test.mjs \
+            tools/mobile/release-contract-reference-integrity.test.mjs \
+            tools/mobile/stage-generic-mobile-consumer-bundle.test.mjs \
+            tools/mobile/store-documents-truthfulness.test.mjs \
+            tools/mobile/store-release-preflight.test.mjs \
+            tools/mobile/status-voice-inventory.test.mjs \
+            tools/release/hash-android-bundle-payload.test.mjs
+          node tools/ci/mobile-cross-feature-boundary-ratchet.mjs
+          node tools/ci/audit-mobile-datapack-assets.mjs \
+            --index apps/mobile/assets/datapacks/index.json \
+            --root apps/mobile
+      - name: Run Journey V3 generator checks
+        run: |
+          node --test tools/mobile/stage-journey-v3-contract.test.mjs
+          node --test tools/mobile/generate-journey-v3-client.test.mjs
+          node --test tools/mobile/verify-journey-v3-client-drift.test.mjs
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Verify Drift generated code freshness
+        working-directory: apps/mobile
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- lib test
+      - name: Check format
+        working-directory: apps/mobile
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Analyze
+        working-directory: apps/mobile
+        run: flutter analyze
+
+  # 전체 host test·coverage lane. 러너 vCPU 수만큼 test 프로세스를 병렬 실행한다.
+  mobile-host-tests:
+    name: Mobile host tests
+    needs: scope
+    if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version-file: .nvmrc
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Discover host tests
+        env:
+          TEST_PARITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          TEST_PARITY_HEAD_SHA: ${{ github.sha }}
+        run: |
+          node tools/ci/mobile-host-test-parity.mjs discover \
+            --repository . \
+            --policy tools/ci/mobile-host-test-policy.json \
+            --output "${RUNNER_TEMP}/mobile-host-test-inventory.json" \
+            --base "${TEST_PARITY_BASE_SHA}" \
+            --head "${TEST_PARITY_HEAD_SHA}" \
+            --event "${GITHUB_EVENT_NAME}"
+      - name: Test
+        working-directory: apps/mobile
+        run: >-
+          flutter test --coverage
+          --concurrency "$(nproc)"
+          --file-reporter "json:${RUNNER_TEMP}/mobile-host-test-events.json"
+      - name: Verify host test execution parity
+        run: |
+          node tools/ci/mobile-host-test-parity.mjs verify \
+            --inventory "${RUNNER_TEMP}/mobile-host-test-inventory.json" \
+            --report "${RUNNER_TEMP}/mobile-host-test-events.json" \
+            --summary "${RUNNER_TEMP}/mobile-host-test-parity.json"
+      # 노선도 바탕 래스터 프레임 상한 확인. 위 전체 실행은 Skia 소프트웨어 래스터라 텍스트 라벨
+      # 변형을 재고 값은 기록만 한다. 이 단계는 SwiftShader 위 Impeller Vulkan으로 Impeller 기기군이
+      # 쓰는 윤곽선 라벨 변형을 고르는지와 래스터 스레드 시간 p50이 상한 아래인지 본다. 회귀 게이트가
+      # 아니다. 회귀와 Skia OpenGLES 기기군의 텍스트 라벨 변형은
+      # test/evidence/perf-route-map-raster-517의 실기기 교대 측정 원자료가 맡는다.
+      - name: Raster frame upper bound (Impeller)
+        working-directory: apps/mobile
+        run: >-
+          flutter test --enable-impeller
+          --dart-define=ROUTE_MAP_RASTER_UPPER_BOUND_IMPELLER=true
+          test/features/network_map/presentation/route_map_basemap_perf_test.dart
+      - name: Filter mobile coverage
+        run: |
+          node tools/ci/filter-mobile-lcov.mjs normalize \
+            --input apps/mobile/coverage/lcov.info \
+            --output "${RUNNER_TEMP}/mobile-coverage-normalized.lcov" \
+            --policy tools/ci/mobile-coverage-policy.json \
+            --result "${RUNNER_TEMP}/mobile-coverage-filter-result.json"
+      - name: Upload mobile coverage for SonarCloud
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-sonar-lcov
+          path: ${{ runner.temp }}/mobile-coverage-normalized.lcov
+          retention-days: 1
+          if-no-files-found: error
+      - name: Analyze mobile coverage ratchet
+        id: coverage_ratchet_analyze
+        env:
+          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RATCHET_EVENT: ${{ github.event_name }}
+          RATCHET_EVENT_PATH: ${{ github.event_path }}
+          RATCHET_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          RATCHET_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RATCHET_TESTED_MERGE_SHA: ${{ github.sha }}
+          RATCHET_EVENT_REF: ${{ github.ref }}
+          RATCHET_PR_NUMBER: ${{ github.event.pull_request.number || 'none' }}
+        run: |
+          node tools/ci/mobile-coverage-ratchet.mjs analyze \
+            --event "${RATCHET_EVENT}" \
+            --event-path "${RATCHET_EVENT_PATH}" \
+            --base-sha "${RATCHET_BASE_SHA}" \
+            --head-sha "${RATCHET_HEAD_SHA}" \
+            --tested-merge-sha "${RATCHET_TESTED_MERGE_SHA}" \
+            --event-ref "${RATCHET_EVENT_REF}" \
+            --pull-request-number "${RATCHET_PR_NUMBER}" \
+            --raw-lcov apps/mobile/coverage/lcov.info \
+            --normalized-lcov "${RUNNER_TEMP}/mobile-coverage-normalized.lcov" \
+            --filter-result "${RUNNER_TEMP}/mobile-coverage-filter-result.json" \
+            --policy tools/ci/mobile-coverage-policy.json \
+            --baseline tools/ci/mobile-coverage-baseline.json
+      - name: Upload mobile coverage ratchet evidence
+        id: coverage_ratchet_upload
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-coverage-ratchet-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/mobile-coverage-ratchet
+          retention-days: 5
+          if-no-files-found: error
+      - name: Enforce mobile coverage ratchet verdict
+        if: always()
+        env:
+          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node tools/ci/mobile-coverage-ratchet.mjs verdict \
+            --analysis-outcome "${{ steps.coverage_ratchet_analyze.outcome }}" \
+            --upload-outcome "${{ steps.coverage_ratchet_upload.outcome }}"
+
+  # SonarQube Cloud Automatic Analysis는 Dart를 지원하지 않아 CI scanner로 분석한다.
+  # coverage는 ratchet과 같은 필터링 lcov를 쓴다. secret이 없는 fork·Dependabot PR은 건너뛴다.
+  sonarcloud:
+    name: SonarCloud
+    needs: mobile-host-tests
+    if: >-
+      ${{
+        needs.mobile-host-tests.result == 'success' &&
+        github.actor != 'dependabot[bot]' &&
+        (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Download mobile coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mobile-sonar-lcov
+          path: ${{ runner.temp }}/mobile-sonar-lcov
+      - name: Map coverage paths to repository root
+        run: |
+          mkdir -p apps/mobile/coverage
+          sed 's#^SF:lib/#SF:apps/mobile/lib/#' \
+            "${RUNNER_TEMP}/mobile-sonar-lcov/mobile-coverage-normalized.lcov" > apps/mobile/coverage/lcov.info
+      - name: Verify mapped coverage paths
+        run: |
+          lcov=apps/mobile/coverage/lcov.info
+          if ! grep -q '^SF:' "${lcov}"; then
+            echo "::error::${lcov} has no SF: records, so SonarCloud would report zero coverage"
+            exit 1
+          fi
+          if grep '^SF:' "${lcov}" | grep -v '^SF:apps/mobile/lib/'; then
+            echo "::error::${lcov} has SF: records outside apps/mobile/lib/ (listed above), so SonarCloud cannot match them to sources"
+            exit 1
+          fi
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@4d1dc0c91ee400dcf8a6dddf2f705ac36542e304 # v8.4.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  # required check "Mobile CI". 모든 lane 결과를 모은다. 실패·누락·취소는 물론, 실행 판정인데
+  # skipped이거나 skip 판정인데 실행된 lane도 실패다. always()라 취소된 run에서도 실패로 남는다.
+  mobile:
+    name: Mobile CI
+    needs: [scope, mobile-contracts, mobile-host-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every Mobile CI lane
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RUN_HEAVY_LANES: ${{ needs.scope.outputs.run-heavy-lanes }}
+          SCOPE_REASON: ${{ needs.scope.outputs.reason }}
+          CONTRACTS_RESULT: ${{ needs.mobile-contracts.result }}
+          HOST_TESTS_RESULT: ${{ needs.mobile-host-tests.result }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1" >&2; exit 1; }
+          [[ "$SCOPE_RESULT" == "success" ]] || fail "CI scope 결과가 success가 아니다: ${SCOPE_RESULT:-missing}"
+          case "$RUN_HEAVY_LANES" in
+            true) heavy_expected=success ;;
+            false)
+              [[ "$EVENT_NAME" == "pull_request" ]] || fail "pull_request가 아닌 이벤트는 무거운 lane을 건너뛸 수 없다"
+              heavy_expected=skipped
+              ;;
+            *) fail "CI scope 판정이 없다: ${RUN_HEAVY_LANES:-missing}" ;;
+          esac
+          require_lane() {
+            local label="$1" actual="$2" expected="$3"
+            [[ "$actual" == "$expected" ]] || fail "${label} 결과가 ${expected}가 아니다: ${actual:-missing}"
+            if [[ "$actual" == "skipped" ]]; then
+              echo "- ${label}: 건너뜀 (${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- ${label}: ${actual}" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          echo "### Mobile CI lanes (run-heavy-lanes=${RUN_HEAVY_LANES}, ${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+          require_lane "Mobile contracts" "$CONTRACTS_RESULT" success
+          require_lane "Mobile host tests" "$HOST_TESTS_RESULT" "$heavy_expected"
+
+  # debug APK와 release AAB는 variant·서명·R8·16KB page 게이트가 달라 둘 다 유지한다. 두 빌드를
+  # 한 job에서 APK -> AAB 순서로 돌린다. AAB를 별도 job으로 떼면 warm Gradle 이점을 잃어
+  # AAB 빌드가 약 185초에서 약 280초로 늘고 임계 경로가 길어진다(PR #417 run 36590883607 실측).
+  android-build:
+    name: Android build
+    needs: scope
+    if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Build debug APK
+        working-directory: apps/mobile
+        run: flutter build apk --debug
+      - name: Create ephemeral preflight key
+        env:
+          EASYSUBWAY_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mobile-preflight.p12
+          EASYSUBWAY_ANDROID_STORE_PASSWORD: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_ALIAS: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_PASSWORD: mobile-preflight
+        run: |
+          keytool -genkeypair -storetype PKCS12 \
+            -keystore "${EASYSUBWAY_ANDROID_KEYSTORE_PATH}" \
+            -storepass "${EASYSUBWAY_ANDROID_STORE_PASSWORD}" \
+            -keypass "${EASYSUBWAY_ANDROID_KEY_PASSWORD}" \
+            -alias "${EASYSUBWAY_ANDROID_KEY_ALIAS}" \
+            -keyalg RSA -keysize 2048 -validity 1 \
+            -dname "CN=EasySubway Mobile CI"
+      - name: Build no-upload release AAB
+        working-directory: apps/mobile
+        env:
+          EASYSUBWAY_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mobile-preflight.p12
+          EASYSUBWAY_ANDROID_STORE_PASSWORD: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_ALIAS: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_PASSWORD: mobile-preflight
+        run: |
+          defines=(
+            --dart-define=EASYSUBWAY_API_BASE_URL=https://easysubway-api.aquilaxk.site
+            --dart-define=EASYSUBWAY_KAKAO_MAP_NATIVE_APP_KEY=ci-preflight
+          )
+          ../../tools/mobile/validate-release-dart-defines.sh "${defines[@]}"
+          flutter build appbundle --release "${defines[@]}"
+          ../../tools/mobile/check-android-aab-16kb-page-size.sh \
+            --aab build/app/outputs/bundle/release/app-release.aab \
+            --android-project android \
+            --artifact-dir "$RUNNER_TEMP/android-16kb-aab-evidence"
+          node ../../tools/release/hash-android-bundle-payload.mjs \
+            --aab build/app/outputs/bundle/release/app-release.aab
+      - name: Verify Android dependency lockfile freshness
+        working-directory: apps/mobile/android
+        run: |
+          ./gradlew :app:dependencies --write-locks -q
+          git diff --exit-code -- app/gradle.lockfile
+
+  # required check "Android CI". Mobile CI 집계와 같은 규칙으로 Android build lane 결과를 판정한다.
+  # 빌드 job 자체에 이 이름을 주지 않는 이유: skip 판정 때 skipped check는 통과로 간주되기 때문이다.
+  android:
+    name: Android CI
+    needs: [scope, android-build]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every Android CI lane
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RUN_HEAVY_LANES: ${{ needs.scope.outputs.run-heavy-lanes }}
+          SCOPE_REASON: ${{ needs.scope.outputs.reason }}
+          BUILD_RESULT: ${{ needs.android-build.result }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1" >&2; exit 1; }
+          [[ "$SCOPE_RESULT" == "success" ]] || fail "CI scope 결과가 success가 아니다: ${SCOPE_RESULT:-missing}"
+          case "$RUN_HEAVY_LANES" in
+            true) heavy_expected=success ;;
+            false)
+              [[ "$EVENT_NAME" == "pull_request" ]] || fail "pull_request가 아닌 이벤트는 무거운 lane을 건너뛸 수 없다"
+              heavy_expected=skipped
+              ;;
+            *) fail "CI scope 판정이 없다: ${RUN_HEAVY_LANES:-missing}" ;;
+          esac
+          require_lane() {
+            local label="$1" actual="$2" expected="$3"
+            [[ "$actual" == "$expected" ]] || fail "${label} 결과가 ${expected}가 아니다: ${actual:-missing}"
+            if [[ "$actual" == "skipped" ]]; then
+              echo "- ${label}: 건너뜀 (${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- ${label}: ${actual}" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          echo "### Android CI lanes (run-heavy-lanes=${RUN_HEAVY_LANES}, ${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+          require_lane "Android build" "$BUILD_RESULT" "$heavy_expected"
+
+  dependency-vulnerability-scan:
+    name: Dependency Vulnerability Scan
+    permissions:
+      actions: read
+      security-events: write
+      contents: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@f4cfcc01edc9c8b756a9b873b7a623ca674da51e
+    with:
+      export-results: false
+      upload-sarif: true
+      fail-on-vuln: true
+      scan-args: |-
+        --lockfile=apps/mobile/pubspec.lock
+        --lockfile=apps/mobile/android/app/gradle.lockfile

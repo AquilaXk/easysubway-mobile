@@ -1,0 +1,3 @@
+Installing build/app/outputs/flutter-apk/app-debug.apk...
+Performing Streamed Install
+adb: failed to install app-debug.apk: Failure [INSTALL_FAILED_INSUFFICIENT_STORAGE]

@@ -1,0 +1,277 @@
+{
+  "schemaVersion": 1,
+  "trackedTestSuffix": "_test.dart",
+  "roots": [
+    {
+      "path": "apps/mobile/integration_test",
+      "classification": "NATIVE_INTEGRATION_OWNED_BY_MOBILE_72",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/72"
+    },
+    {
+      "path": "apps/mobile/test_driver",
+      "classification": "NATIVE_INTEGRATION_OWNED_BY_MOBILE_72",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/72"
+    },
+    {
+      "path": "apps/mobile/test",
+      "classification": "REQUIRED_HOST_TEST",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/35"
+    }
+  ],
+  "overrides": [
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_popover_menu_golden_test.dart",
+      "classification": "GOLDEN_OWNED_BY_MOBILE_23",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/23",
+      "reason": "Golden comparison is intentionally macOS-rasterizer-owned and all-skipped on Ubuntu; it replaces the fan menu golden as the Mobile Golden CI mutation probe.",
+      "reviewTrigger": "Mobile #23 terminal golden execution lane"
+    },
+    {
+      "path": "apps/mobile/test/features/journey/presentation/result/journey_stair_status_golden_test.dart",
+      "classification": "GOLDEN_OWNED_BY_MOBILE_23",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/441",
+      "reason": "Golden comparison is intentionally macOS-rasterizer-owned and all-skipped on Ubuntu; Mobile Golden CI runs it with the parity inventory.",
+      "reviewTrigger": "Mobile #441 stair status golden lane"
+    },
+    {
+      "path": "apps/mobile/test/features/journey/presentation/result/journey_transfer_guide_golden_test.dart",
+      "classification": "GOLDEN_OWNED_BY_MOBILE_23",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/451",
+      "reason": "Golden comparison is intentionally macOS-rasterizer-owned and all-skipped on Ubuntu; Mobile Golden CI runs it with the parity inventory.",
+      "reviewTrigger": "Mobile #451 transfer guide golden lane"
+    }
+  ],
+  "deletionDispositions": [
+    {
+      "path": "apps/mobile/test/route_v2_method_channel_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Route V2 session/attestation ingress has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 Route V2 ingress terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_v2_ingress_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Route V2 API repository has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 Route V2 API repository terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_search_request_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Route V2 request serialization has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 Route V2 request terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/core/error/route_search_error_mapping_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Route V2 online error mapping has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 Route V2 online error terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/local_route_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_engine_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_result_merge_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/canonical_station_pack_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/integration_test/route_search_snapshot_cache_benchmark_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/internal_route/internal_route_engine_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Internal-route local calculation has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 internal route calculation terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/internal_route/local_internal_route_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Internal-route local repository has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 internal route calculation terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_share_summary_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/22",
+      "reason": "Route share summary has no production importer; its sole test is removed with the consumer-zero root source.",
+      "reviewTrigger": "Mobile #22 root survivor handoff"
+    },
+    {
+      "path": "apps/mobile/test/features/get_off_alarm/get_off_alarm_route_mapping_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/297",
+      "reason": "Legacy Route V2 ride-leg projection has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #297 Journey V3 get-off-alarm legacy deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/get_off_alarm/get_off_alarm_toggle_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/297",
+      "reason": "Legacy Route V2 get-off-alarm toggle has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #297 Journey V3 get-off-alarm legacy deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_search_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy local route result and V1 favorite-route API writer have no production consumer and are physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/route_hedge_labels_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy route hedge labels have no production consumer and are physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_identity_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy local route candidate identity has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/core/database/catalog/station_timetable_query_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/67",
+      "reason": "CatalogStationTimetableQuery/Drift timetable success has no production consumer and is physically removed for server-authoritative Journey V3.",
+      "reviewTrigger": "Mobile #67 server-authoritative timetable terminal deletion"
+    },
+    {
+      "path": "apps/mobile/integration_test/route_map_svg_failure_boundary_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/5",
+      "reason": "Platform WebView and RouteMapSvgViewport were physically removed for native 2D Canvas.",
+      "reviewTrigger": "Mobile #5 native 2D canvas restoration and platform WebView removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/infrastructure/route_map_svg_viewport_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/5",
+      "reason": "RouteMapSvgViewport platform view bridge has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #5 native 2D canvas restoration and platform WebView removal"
+    },
+    {
+      "path": "apps/mobile/test/features/fare/fare_calculator_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/429",
+      "reason": "Local fare calculation was removed; fares come only from the Journey V3 server fare (backend #430, #444).",
+      "reviewTrigger": "Mobile #429 local fare code removal"
+    },
+    {
+      "path": "apps/mobile/test/features/fare/official_od_fare_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/429",
+      "reason": "Local fare calculation was removed; fares come only from the Journey V3 server fare (backend #430, #444).",
+      "reviewTrigger": "Mobile #429 local fare code removal"
+    },
+    {
+      "path": "apps/mobile/test/features/fare/official_od_fare_quote_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "OfficialOdFareQuote model was unreachable from lib/main.dart after local fare removal (#429); the catalog uses its own drift row class.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/realtime/realtime_controller_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "RealtimeStationController was unreachable from lib/main.dart; station detail and network map use realtime_repository.dart directly.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/infrastructure/route_map_renderer_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "WebView-era route map renderer lifecycle abstraction was unreachable from lib/main.dart after the structured canvas promotion (#1641).",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/infrastructure/structured_route_map_renderer_controller_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "StructuredRouteMapRendererController implemented only the removed renderer abstraction and was unreachable from lib/main.dart.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/domain/route_map_linear_geometry_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "RouteMapLinearGeometry was unreachable from lib/main.dart; the network map renders the structured route map directly.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/stations/presentation/station_detail_header_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "Pre-redesign station detail header was unreachable from lib/main.dart after the station detail redesign.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/stations/presentation/station_facility_status_summary_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "Station facility status summary was unreachable from lib/main.dart after the station detail redesign (#381).",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/network_map_route_draft_pill_mark_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/509",
+      "reason": "Route draft input fields no longer render line marks; network_map_route_draft_dot_test.dart covers the role dot, name width and text-scale overflow at the same widths.",
+      "reviewTrigger": "Mobile #509 route draft line mark removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
+      "reason": "The radial fan menu was replaced by the station popover; station_popover_menu_test.dart covers slot actions, clear-on-reselect, disabled slots, semantics labels, dismiss and text scale.",
+      "reviewTrigger": "Mobile #511 station fan menu replacement"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_geometry_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
+      "reason": "Fan sector paths were removed with the radial menu; the popover keeps only its design size and tail tip, covered by station_popover_menu_test.dart and the placement tests in network_map_station_popover_wiring_test.dart.",
+      "reviewTrigger": "Mobile #511 station fan menu replacement"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_golden_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
+      "reason": "Fan menu goldens were removed with the radial menu; station_popover_menu_golden_test.dart is the new golden suite and Mobile Golden CI mutation probe.",
+      "reviewTrigger": "Mobile #511 station fan menu replacement"
+    }
+  ]
+}

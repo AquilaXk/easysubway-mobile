@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "issue": 444,
+  "capturedAt": "2026-10-01",
+  "platform": "Android emulator easysubway_ps16k_api36 (Android 16 API 36), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "재승차(farePenaltyApplies=true) 환승 노드에 '노외 환승 (시간 초과)' 배지와 금액 없는 '재승차 운임 발생'만 표시되고 '추가 요금 +N원'은 없다",
+    "여정 총운임은 서버 fare의 성인 카드 값(카드 2,600원)만 요약에 표시된다",
+    "'재승차 운임 발생'이 접근성 트리에 별도 노드(label)로 나온다"
+  ],
+  "files": [
+    {
+      "path": "reboarding-transfer.png",
+      "sha256": "add808a1ab3c628bf519dff25ed31a7f53353de6b229063c6a113b128b5820a7",
+      "description": "재승차 경로: 요약 '카드 2,600원'(fare), 환승 노드에 시간 초과 배지와 '재승차 운임 발생'"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "ba67a41faaed1ab8c2a2d1b92a09838913f7310afec7af8cb95284d3a89e916f",
+      "description": "uiautomator dump 접근성 트리: 재승차 운임 발생 노드, 총운임 요약 라벨"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 JourneySearchScreen에 고정 fixture repository(재승차 환승 + fare 2,600원)를 주입해 flutter test -d emulator-5554로 실행하고 adb exec-out screencap과 adb shell uiautomator dump로 수집. lib/ 테스트 전용 hook 없음. fixture 수치(2,600원)는 화면 동작 확인용이며 실제 공식 운임표 값이 아니다.",
+  "notes": "TalkBack 실기 낭독은 하지 않았고 접근성 트리로 대체했다."
+}

@@ -1,0 +1,250 @@
+Resolving dependencies...
+Downloading packages...
+  _fe_analyzer_shared 100.0.0 (109.0.0 available)
+  _flutterfire_internals 1.3.76 (1.3.78 available)
+  analyzer 13.0.0 (14.5.0 available)
+  build 4.0.7 (5.0.0 available)
+  build_config 1.3.0 (1.4.0 available)
+  build_daemon 4.1.1 (4.1.7 available)
+  build_runner 2.15.1 (2.17.1 available)
+  built_collection 5.1.1 (5.1.2 available)
+  built_value 8.12.6 (8.13.0 available)
+  cli_util 0.4.2 (0.6.0 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.1.0 available)
+  connectivity_plus 7.3.1 (7.3.2 available)
+  cross_file 0.3.5+2 (0.4.0 available)
+  dart_style 3.1.9 (3.1.14 available)
+  dbus 0.7.13 (0.8.0 available)
+  drift 2.34.3 (2.35.2 available)
+  drift_dev 2.35.0 (2.35.1 available)
+  file_selector_linux 0.9.4 (0.9.4+1 available)
+  file_selector_macos 0.9.5 (0.9.5+1 available)
+  file_selector_windows 0.9.3+5 (0.9.3+6 available)
+  firebase_core 4.13.0 (5.0.0 available)
+  firebase_core_platform_interface 8.1.0 (8.1.1 available)
+  firebase_core_web 3.10.0 (4.0.0 available)
+  firebase_crashlytics 5.2.7 (6.0.0 available)
+  firebase_crashlytics_platform_interface 3.8.27 (3.9.1 available)
+  flutter_local_notifications 22.3.0 (22.3.2 available)
+  flutter_local_notifications_linux 8.0.1 (8.0.2 available)
+  flutter_secure_storage_linux 3.0.1 (3.0.3 available)
+  glob 2.1.3 (2.2.0 available)
+  home_widget 0.9.3 (0.10.0 available)
+  hooks 2.0.2 (2.2.0 available)
+  image_picker 1.2.3 (1.2.4 available)
+  image_picker_android 0.8.13+19 (0.8.13+25 available)
+  image_picker_ios 0.8.13+6 (0.8.13+12 available)
+  image_picker_platform_interface 2.11.1 (2.11.2 available)
+  intl 0.20.2 (0.20.3 available)
+  io 1.0.5 (1.1.0 available)
+  jni 1.0.0 (1.1.0 available)
+  jni_flutter 1.0.1 (1.0.4+1 available)
+  kakao_map_sdk 1.2.6 (1.3.1 available)
+  logger 2.7.0 (2.8.0 available)
+  matcher 0.12.19 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.0 (1.19.0 available)
+  mime 2.0.0 (2.1.0 available)
+  native_toolchain_c 0.19.1 (0.19.5 available)
+  nm 0.5.0 (0.6.0 available)
+  objective_c 9.4.1 (9.6.2 available)
+  package_config 2.2.0 (3.0.0 available)
+  path_provider_linux 2.2.1 (2.2.2 available)
+  path_provider_platform_interface 2.1.2 (2.1.3 available)
+  petitparser 7.0.2 (7.1.0 available)
+  platform 3.1.6 (3.2.0 available)
+  pool 1.5.2 (1.5.3 available)
+  process 5.0.5 (5.0.6 available)
+  pub_semver 2.2.0 (2.2.1 available)
+  pubspec_parse 1.5.0 (1.6.0 available)
+  record_use 0.6.0 (1.1.1 available)
+  share_plus 13.3.0 (13.3.1 available)
+  shelf 1.4.2 (1.4.3 available)
+  source_gen 4.2.3 (4.3.1 available)
+  sqlite3 3.5.2 (3.7.1 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  stream_transform 2.1.1 (2.1.2 available)
+  test_api 0.7.11 (0.7.15 available)
+  timezone 0.11.1 (0.11.2 available)
+  url_launcher 6.3.2 (6.3.3 available)
+  url_launcher_android 6.3.32 (6.3.33 available)
+  url_launcher_ios 6.4.1 (6.4.2 available)
+  url_launcher_linux 3.2.2 (3.2.3 available)
+  url_launcher_macos 3.2.5 (3.2.6 available)
+  url_launcher_windows 3.1.5 (3.1.6 available)
+  vector_graphics_compiler 1.3.0 (1.3.2 available)
+  vector_math 2.2.0 (2.4.3 available)
+  vm_service 15.2.0 (15.4.0 available)
+  webdriver 3.1.0 (3.2.0 available)
+  win32 6.3.0 (6.4.0 available)
+  xml 7.0.1 (7.1.0 available)
+  yaml 3.1.3 (3.1.4 available)
+Got dependencies!
+80 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Running Gradle task 'assembleDebug'...                          
+WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): home_widget, kakao_map_sdk, play_integrity_channel, workmanager_android
+Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+
+Please check the changelogs of these plugins and upgrade to a version that supports Built-in Kotlin.
+If no such version exists, report the issue to the plugin. If necessary, here is a guide on filing 
+an issue against a plugin: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
+
+If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+Running Gradle task 'assembleDebug'...                             26.8s
+✓ Built build/app/outputs/flutter-apk/app-debug.apk
+Installing build/app/outputs/flutter-apk/app-debug.apk...           3.3s
+I/flutter ( 4436): The Dart VM service is listening on http://127.0.0.1:39091/_7jMOPYSlUo=/
+D/nativeloader( 4436): Load /data/app/~~ieEGzseR4PA1uuZbfIi7yQ==/com.easysubway.app-MAOXM2sebQDfpyQnOYLBUg==/base.apk!/lib/x86_64/libdartjni.so using ns clns-7 from class loader (caller=/data/app/~~ieEGzseR4PA1uuZbfIi7yQ==/com.easysubway.app-MAOXM2sebQDfpyQnOYLBUg==/base.apk!classes10.dex): ok
+W/.easysubway.app( 4436): Accessing hidden method Landroid/view/accessibility/AccessibilityNodeInfo;->getSourceNodeId()J (unsupported,test-api, reflection, allowed)
+W/.easysubway.app( 4436): Accessing hidden method Landroid/view/accessibility/AccessibilityRecord;->getSourceNodeId()J (unsupported, reflection, allowed)
+W/.easysubway.app( 4436): Accessing hidden field Landroid/view/accessibility/AccessibilityNodeInfo;->mChildNodeIds:Landroid/util/LongArray; (unsupported, reflection, allowed)
+W/.easysubway.app( 4436): Accessing hidden method Landroid/util/LongArray;->get(I)J (unsupported, reflection, allowed)
+D/FlutterRenderer( 4436): Width is zero. 0,0
+W/HWUI    ( 4436): Unknown dataspace 0
+I/Choreographer( 4436): Skipped 71 frames!  The application may be doing too much work on its main thread.
+I/WindowExtensionsImpl( 4436): Initializing Window Extensions, vendor API level=6, activity embedding enabled=true
+D/FlutterRenderer( 4436): Width is zero. 0,0
+D/FlutterJNI( 4436): Sending viewport metrics to the engine.
+W/HWUI    ( 4436): Failed to initialize 101010-2 format, error = EGL_SUCCESS
+I/Gralloc4( 4436): mapper 4.x is not supported
+I/.easysubway.app( 4436): Compiler allocated 5174KB to compile void android.view.ViewRootImpl.performTraversals()
+I/Choreographer( 4436): Skipped 43 frames!  The application may be doing too much work on its main thread.
+D/FlutterJNI( 4436): Sending viewport metrics to the engine.
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:39351/_7jMOPYSlUo=/
+VMServiceFlutterDriver: Isolate found with number: 7718936149622011
+VMServiceFlutterDriver: Isolate 7718936149622011 is runnable.
+VMServiceFlutterDriver: Isolate is paused at start.
+VMServiceFlutterDriver: Attempting to resume isolate
+I/flutter ( 4436): 00:00 +0: 스모크 대상 화면이 모두 화면 표에 있다
+I/flutter ( 4436): 00:00 +1: 홈(노선도) - 탭 영역 48dp와 탭 요소 라벨
+VMServiceFlutterDriver: Connected to Flutter application.
+I/Choreographer( 4436): Skipped 33 frames!  The application may be doing too much work on its main thread.
+I/HWUI    ( 4436): Davey! duration=708ms; Flags=1, FrameTimelineVsyncId=24558, IntendedVsync=241720751767, Vsync=242270751745, InputEventId=0, HandleInputStart=242287038333, AnimationStart=242287039595, PerformTraversalsStart=242287040196, DrawStart=242288582394, FrameDeadline=241737418433, FrameInterval=242286493705, FrameStartTime=16666666, SyncQueued=242289207001, SyncStart=242496297001, IssueDrawCommandsStart=242502567986, SwapBuffers=242520941945, FrameCompleted=242636653192, DequeueBufferDuration=481915, QueueBufferDuration=722031, GpuCompleted=242636125930, SwapBuffersCompleted=242636653192, DisplayPresentTime=0, CommandSubmissionCompleted=242520941945, 
+I/flutter ( 4436): routeMapFrame buildMs=160.59 rasterMs=71.26 totalMs=615.98
+W/WindowOnBackDispatcher( 4436): OnBackInvokedCallback is not enabled for the application.
+W/WindowOnBackDispatcher( 4436): Set 'android:enableOnBackInvokedCallback="true"' in the application manifest.
+I/flutter ( 4436): ══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════
+I/flutter ( 4436): The following TestFailure was thrown running a test:
+I/flutter ( 4436): Expected: Tappable objects should be at least Size(48.0, 48.0)
+I/flutter ( 4436):   Actual: <Instance of 'WidgetTester'>
+I/flutter ( 4436):    Which: SemanticsNode#7(Rect.fromLTRB(375.4, 68.8, 401.4, 94.8), actions: [focus, tap], flags:
+I/flutter ( 4436): [isButton, hasEnabledState, isEnabled, isFocusable], traversalParentIdentifier:
+I/flutter ( 4436): _OverlayPortalState#a3b18, tooltip: "메뉴", textDirection: ltr): expected tap target size of at least
+I/flutter ( 4436): Size(48.0, 48.0), but found Size(26.0, 26.0)
+I/flutter ( 4436):           See also: https://support.google.com/accessibility/android/answer/7101858?hl=en
+I/flutter ( 4436): 
+I/flutter ( 4436): When the exception was thrown, this was the stack:
+I/flutter ( 4436): #0      fail (package:matcher/src/expect/expect.dart:187:31)
+I/flutter ( 4436): #1      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:155:13)
+I/flutter ( 4436): <asynchronous suspension>
+I/flutter ( 4436): #4      OutstandingWork.complete (package:test_api/hooks.dart:77:3)
+I/flutter ( 4436): <asynchronous suspension>
+I/flutter ( 4436): #5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+I/flutter ( 4436): <asynchronous suspension>
+I/flutter ( 4436): #6      main.<anonymous closure> (file:///workspace/apps/mobile/integration_test/core_screen_a11y_smoke_test.dart:74:9)
+I/flutter ( 4436): <asynchronous suspension>
+I/flutter ( 4436): #7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+I/flutter ( 4436): <asynchronous suspension>
+I/flutter ( 4436): #8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+I/flutter ( 4436): <asynchronous suspension>
+I/flutter ( 4436): #9      TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1706:12)
+I/flutter ( 4436): <asynchronous suspension>
+I/flutter ( 4436): (elided 2 frames from dart:async)
+I/flutter ( 4436): 
+I/flutter ( 4436): The test description was:
+I/flutter ( 4436):   홈(노선도) - 탭 영역 48dp와 탭 요소 라벨
+I/flutter ( 4436): ════════════════════════════════════════════════════════════════════════════════════════════════════
+I/flutter ( 4436): 00:01 +1: 홈(노선도) - 탭 영역 48dp와 탭 요소 라벨 [E]
+I/flutter ( 4436):   Test failed. See exception logs above.
+I/flutter ( 4436):   The test description was: 홈(노선도) - 탭 영역 48dp와 탭 요소 라벨
+I/flutter ( 4436):   
+I/flutter ( 4436): 00:01 +1 -1: 좌측 메뉴 - 탭 영역 48dp와 탭 요소 라벨
+D/EGL_emulation( 4436): app_time_stats: avg=426.46ms min=201.21ms max=670.94ms count=4
+I/flutter ( 4436): routeMapFrame buildMs=74.35 rasterMs=18.28 totalMs=96.97
+I/flutter ( 4436): routeMapFrame buildMs=20.23 rasterMs=35.31 totalMs=64.16
+I/flutter ( 4436): routeMapFrame buildMs=5.26 rasterMs=40.17 totalMs=45.86
+I/flutter ( 4436): 00:02 +2 -1: 경로 결과·상세 - 탭 영역 48dp와 탭 요소 라벨
+D/EGL_emulation( 4436): app_time_stats: avg=142.75ms min=14.05ms max=290.94ms count=7
+I/flutter ( 4436): routeMapFrame buildMs=86.10 rasterMs=30.22 totalMs=220.37
+I/flutter ( 4436): routeMapFrame buildMs=25.52 rasterMs=75.64 totalMs=111.78
+I/flutter ( 4436): routeMapFrame buildMs=5.16 rasterMs=38.73 totalMs=60.05
+I/flutter ( 4436): routeMapFrame buildMs=92.19 rasterMs=40.14 totalMs=132.79
+I/flutter ( 4436): routeMapFrame buildMs=12.99 rasterMs=14.76 totalMs=28.10
+I/flutter ( 4436): 00:03 +3 -1: 역 상세(출구 지도 안내) - 탭 영역 48dp와 탭 요소 라벨
+D/ProfileInstaller( 4436): Installing profile for com.easysubway.app
+D/EGL_emulation( 4436): app_time_stats: avg=105.52ms min=22.00ms max=206.10ms count=10
+I/flutter ( 4436): routeMapFrame buildMs=12.21 rasterMs=37.00 totalMs=49.88
+I/flutter ( 4436): routeMapFrame buildMs=3.89 rasterMs=35.12 totalMs=39.43
+I/flutter ( 4436): routeMapFrame buildMs=30.37 rasterMs=30.83 totalMs=61.63
+I/flutter ( 4436): routeMapFrame buildMs=81.13 rasterMs=136.55 totalMs=218.01
+I/flutter ( 4436): routeMapFrame buildMs=23.85 rasterMs=80.91 totalMs=105.18
+I/flutter ( 4436): 00:04 +4 -1: 역 검색 - 탭 영역 48dp와 탭 요소 라벨
+I/flutter ( 4436): routeMapFrame buildMs=0.49 rasterMs=107.73 totalMs=109.25
+I/flutter ( 4436): routeMapFrame buildMs=47.67 rasterMs=29.68 totalMs=105.84
+I/flutter ( 4436): routeMapFrame buildMs=14.44 rasterMs=40.35 totalMs=55.17
+I/flutter ( 4436): routeMapFrame buildMs=3.70 rasterMs=35.45 totalMs=39.52
+D/EGL_emulation( 4436): app_time_stats: avg=126.96ms min=22.11ms max=306.32ms count=8
+I/flutter ( 4436): routeMapFrame buildMs=33.48 rasterMs=58.71 totalMs=97.66
+I/flutter ( 4436): routeMapFrame buildMs=21.69 rasterMs=85.70 totalMs=133.54
+I/flutter ( 4436): routeMapFrame buildMs=2.50 rasterMs=83.78 totalMs=184.10
+I/flutter ( 4436): routeMapFrame buildMs=6.17 rasterMs=78.92 totalMs=163.13
+I/flutter ( 4436): routeMapFrame buildMs=145.88 rasterMs=44.34 totalMs=215.68
+I/flutter ( 4436): routeMapFrame buildMs=65.45 rasterMs=7.28 totalMs=88.57
+I/ImeTracker( 4436): com.easysubway.app:39809f93: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+D/InputMethodManager( 4436): showSoftInput() view=io.flutter.embedding.android.FlutterView{8584289 VFE...... .F....ID 0,0-1080,2400 #1 aid=1073741824} flags=0 reason=SHOW_SOFT_INPUT
+I/ImeTracker( 4436): com.easysubway.app:a66cf236: onRequestShow at ORIGIN_CLIENT reason SHOW_SOFT_INPUT fromUser false
+D/InputMethodManager( 4436): showSoftInput() view=io.flutter.embedding.android.FlutterView{8584289 VFE...... .F....ID 0,0-1080,2400 #1 aid=1073741824} flags=0 reason=SHOW_SOFT_INPUT
+I/flutter ( 4436): 00:05 +5 -1: 알림함 - 탭 영역 48dp와 탭 요소 라벨
+I/AssistStructure( 4436): Flattened final assist data: 432 bytes, containing 1 windows, 3 views
+I/ImeTracker( 4436): com.easysubway.app:1c7949d8: onRequestHide at ORIGIN_CLIENT reason HIDE_SOFT_INPUT fromUser false
+D/EGL_emulation( 4436): app_time_stats: avg=119.63ms min=66.04ms max=318.83ms count=10
+I/flutter ( 4436): routeMapFrame buildMs=71.10 rasterMs=118.73 totalMs=210.87
+I/flutter ( 4436): routeMapFrame buildMs=46.15 rasterMs=148.59 totalMs=220.05
+I/flutter ( 4436): routeMapFrame buildMs=49.14 rasterMs=59.47 totalMs=110.68
+I/flutter ( 4436): routeMapFrame buildMs=10.13 rasterMs=116.59 totalMs=164.23
+W/RemoteInputConnectionImpl( 4436): requestCursorUpdates on inactive InputConnection
+I/flutter ( 4436): 00:07 +6 -1: (tearDownAll)
+I/flutter ( 4436): 00:07 +7 -1: Some tests failed.
+Failure Details:
+Failure in method: 홈(노선도) - 탭 영역 48dp와 탭 요소 라벨
+══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞═════════════════
+The following TestFailure was thrown running a test:
+Expected: Tappable objects should be at least Size(48.0, 48.0)
+  Actual: <Instance of 'WidgetTester'>
+   Which: SemanticsNode#7(Rect.fromLTRB(375.4, 68.8, 401.4,
+94.8), actions: [focus, tap], flags: [isButton, hasEnabledState,
+isEnabled, isFocusable], traversalParentIdentifier:
+_OverlayPortalState#a3b18, tooltip: "메뉴", textDirection: ltr):
+expected tap target size of at least Size(48.0, 48.0), but found
+Size(26.0, 26.0)
+          See also:
+https://support.google.com/accessibility/android/answer/7101858?hl=en
+
+When the exception was thrown, this was the stack:
+#0      fail (package:matcher/src/expect/expect.dart:187:31)
+#1      _expect.<anonymous closure> (package:matcher/src/expect/expect.dart:155:13)
+<asynchronous suspension>
+#4      OutstandingWork.complete (package:test_api/hooks.dart:77:3)
+<asynchronous suspension>
+#5      expectLater.<anonymous closure> (package:flutter_test/src/widget_tester.dart:508:19)
+<asynchronous suspension>
+#6      main.<anonymous closure> (file:///workspace/apps/mobile/integration_test/core_screen_a11y_smoke_test.dart:74:9)
+<asynchronous suspension>
+#7      testWidgets.<anonymous closure>.<anonymous closure> (package:flutter_test/src/widget_tester.dart:192:15)
+<asynchronous suspension>
+#8      TestWidgetsFlutterBinding._runTestBody (package:flutter_test/src/binding.dart:1952:5)
+<asynchronous suspension>
+#9      TestWidgetsFlutterBinding._createTestCompletionHandler.<anonymous closure> (package:flutter_test/src/binding.dart:1706:12)
+<asynchronous suspension>
+(elided 2 frames from dart:async)
+
+The test description was:
+  홈(노선도) - 탭 영역 48dp와 탭 요소 라벨
+═════════════════════════════════════════════════════════════════
+
+end of failure 1
+
+
+

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "issue": 426,
+  "capturedAt": "2026-10-01",
+  "platform": "Android emulator easysubway_ps16k_api36 (Android 16 API 36), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "무단차 경로의 탑승 승강장 틈 안내 줄이 접근성 트리에서 label '탑승 승강장, 틈이 좁은 문 3호차 2번, 5호차 1번, 7호차 4번'의 Button, clickable=true로 나온다(수정 전에는 click 동작 없는 button)",
+    "화면 문구·레이아웃은 바뀌지 않았고 줄 높이는 48dp 이상(bounds 1126x126px)"
+  ],
+  "files": [
+    {
+      "path": "platform-gap-line.png",
+      "sha256": "57fca65229dacb685811a060176edcc51d6f7ad782e4694d77f7e5876b1ab61e",
+      "description": "무단차(WHEELCHAIR) 요청 경로의 탑승 노드에 '틈이 좁은 문 3-2 · 5-1 · 7-4' 안내 줄이 보이는 실제 앱 화면"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "7e15e9075536185d1f1bab6bef56bf9570d7b4c15f937b10f4606f3de6d2f304",
+      "description": "uiautomator dump로 수집한 접근성 트리: 틈 안내 줄 노드가 Button, clickable"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 JourneySearchScreen에 고정 fixture repository를 주입해 flutter test -d emulator-5554로 실행하고 adb exec-out screencap과 adb shell uiautomator dump로 수집. lib/ 테스트 전용 hook 없음.",
+  "notes": "TalkBack 실기 낭독은 수행하지 않았고 TalkBack이 읽는 접근성 트리로 대체했다. 같은 패턴 점검: journey_search_screen.dart·result/*.dart의 button:true Semantics는 후보 탭·정차역 토글(둘 다 onTap 있음)과 이번에 고친 틈 안내 줄뿐이며, 나머지 ExcludeSemantics는 비상호작용 라벨/장식이라 누락 없음."
+}

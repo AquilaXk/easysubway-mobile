@@ -1,0 +1,716 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:easysubway_mobile/app/app_dependencies.dart';
+import 'package:easysubway_mobile/app/next_train_widget_timetable_composition.dart';
+import 'package:easysubway_mobile/auth_headers.dart';
+import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
+import 'package:easysubway_mobile/core/database/user/user_database.dart'
+    as user_db;
+import 'package:easysubway_mobile/core/network/api_client.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
+import 'package:easysubway_mobile/features/ads/ad_repository.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
+import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
+import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
+import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
+import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
+import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart'
+    as station_models;
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/features/train_search/domain/train_search_models.dart';
+import 'package:easysubway_mobile/main.dart' as app;
+import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
+import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  test('빈 공지 일러스트 CC Attribution을 라이선스 화면에 등록한다', () async {
+    app.registerBundledAssetLicenses();
+
+    final entry = await LicenseRegistry.licenses.firstWhere(
+      (entry) => entry.packages.contains('empty-notices-illustration'),
+    );
+    final text = entry.paragraphs.map((paragraph) => paragraph.text).join('\n');
+
+    expect(text, contains('Anton Kalashnyk'));
+    expect(text, contains('Customer Relation Vectors With Faces'));
+    expect(
+      text,
+      contains(
+        'https://www.svgrepo.com/collection/customer-relation-vectors-with-faces/',
+      ),
+    );
+    expect(
+      text,
+      contains('https://www.svgrepo.com/page/licensing/#CC%20Attribution'),
+    );
+  });
+
+  test('최근 검색 빈 상태 경고 일러스트 출처를 라이선스 화면에 등록한다', () async {
+    app.registerBundledAssetLicenses();
+
+    final entry = await LicenseRegistry.licenses.firstWhere(
+      (entry) =>
+          entry.packages.contains('empty-recent-search-warning-illustration'),
+    );
+    final text = entry.paragraphs.map((paragraph) => paragraph.text).join('\n');
+
+    expect(text, contains('https://www.svgrepo.com/svg/501793/warning'));
+    expect(text, contains('https://www.svgrepo.com/page/licensing/'));
+  });
+
+  test(
+    '광고 repository 주입 identity를 유지하고 기본값은 fetch 전 base URI를 읽지 않는다',
+    () async {
+      final catalogDatabase = CatalogDatabase.memory();
+      final userDatabase = user_db.UserDatabase.memory();
+      final injected = AdRepository(
+        ApiClient(baseUri: Uri.parse('https://ads.example.test')),
+      );
+      var apiBaseReads = 0;
+      addTearDown(catalogDatabase.close);
+      addTearDown(userDatabase.close);
+
+      final injectedDependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        adRepository: injected,
+        apiBaseUri: () {
+          apiBaseReads++;
+          return null;
+        },
+        enablePushNotifications: false,
+      );
+
+      expect(injectedDependencies.adRepository, same(injected));
+      expect(apiBaseReads, 0);
+
+      final defaultDependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        apiBaseUri: () {
+          apiBaseReads++;
+          return null;
+        },
+        enablePushNotifications: false,
+      );
+
+      expect(apiBaseReads, 0);
+      expect(
+        await defaultDependencies.adRepository!.fetchActive(
+          AdPlacement.routeResultBottom,
+        ),
+        isNull,
+      );
+      expect(apiBaseReads, 1);
+    },
+  );
+
+  test('release build는 demo home data flag를 허용하지 않는다', () {
+    expect(
+      () => app.validateReleaseBuildFlags(
+        isReleaseMode: true,
+        demoHomeDataEnabled: true,
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test('로컬 데이터베이스가 있어도 release route fallback은 만들지 않는다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    await catalogDatabase.seedBaselineIfEmpty();
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () {
+        throw StateError('Local catalog defaults must not read API base URL.');
+      },
+      enablePushNotifications: true,
+    );
+
+    expect(dependencies.repository, isA<DriftStationRepository>());
+    expect(dependencies.notificationRepository, isNotNull);
+    expect(
+      dependencies.reportRepository,
+      isA<UnavailableFacilityReportRepository>(),
+    );
+  });
+
+  test('로컬 데이터베이스 기본 의존성은 시설 신고 fallback 때문에 API 주소를 읽지 않는다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    var apiBaseReads = 0;
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    await catalogDatabase.seedBaselineIfEmpty();
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      apiBaseUri: () {
+        apiBaseReads++;
+        throw StateError('Local app defaults must not read API base URL.');
+      },
+      enablePushNotifications: false,
+    );
+
+    expect(apiBaseReads, 0);
+    expect(dependencies.repository, isA<DriftStationRepository>());
+  });
+
+  test('API 주소가 있으면 Journey V3 lazy authority를 공유한다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    late Uri requestedUri;
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'token': 'session-token',
+            'scope': 'journey:v3',
+            'issuedAt': '2026-08-11T00:00:00Z',
+            'expiresAt': '2026-08-11T01:00:00Z',
+          }),
+        );
+      await request.response.close();
+    });
+    final dependencies = AppDependencies.resolve(
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () =>
+          Uri.parse('http://${server.address.host}:${server.port}'),
+      enablePushNotifications: false,
+    );
+
+    expect(
+      dependencies.journeyRepositoryFactory(),
+      same(dependencies.journeyRepository),
+    );
+    final session = await dependencies.journeyRepository.issueSession(
+      JourneySessionRequest(
+        integrityToken: 'integrity-token',
+        clientNonce: 'AAAAAAAAAAAAAAAAAAAAAA',
+      ),
+    );
+    expect(session.token, 'session-token');
+    expect(requestedUri.path, '/api/v3/journeys/session');
+  });
+
+  test('API 주소가 없으면 local로 강등하지 않고 Journey failure로 닫는다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    addTearDown(catalogDatabase.close);
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () => null,
+      enablePushNotifications: false,
+    );
+
+    await expectLater(
+      dependencies.journeyRepository.issueSession(
+        JourneySessionRequest(
+          integrityToken: 'integrity-token',
+          clientNonce: 'AAAAAAAAAAAAAAAAAAAAAA',
+        ),
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    await expectLater(
+      dependencies.journeyRepository.searchJourneys(
+        JourneySearchRequest(
+          requestId: '01J00000000000000000000000',
+          originStationId: 'station-origin',
+          destinationStationId: 'station-destination',
+          departure: const JourneyDepartureNow(),
+          timePolicy: TimePolicy.timetableRequired,
+          walkingPace: WalkingPace.standard,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 3,
+          alternativeCount: 3,
+        ),
+        sessionToken: 'unused',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    await expectLater(
+      dependencies.journeyRepository.profileJourneys(
+        JourneyProfileRequest(
+          requestId: '01J00000000000000000000000',
+          originStationId: 'station-origin',
+          destinationStationId: 'station-destination',
+          temporalQuery: JourneyDepartBetweenQuery(
+            earliestReadyAt: DateTime.parse('2026-08-11T09:00:00Z'),
+            latestReadyAt: DateTime.parse('2026-08-11T10:00:00Z'),
+          ),
+          timePolicy: TimePolicy.timetableRequired,
+          walkingPace: WalkingPace.standard,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 3,
+          alternativeCount: 3,
+        ),
+        sessionToken: 'unused',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+  });
+
+  test('API 주소가 없으면 시간표 Journey operation도 한 번의 typed failure로 닫는다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    addTearDown(catalogDatabase.close);
+    var apiBaseReads = 0;
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () {
+        apiBaseReads += 1;
+        return null;
+      },
+      enablePushNotifications: false,
+    );
+
+    await expectLater(
+      dependencies.journeyRepository.searchStationTimetables(
+        StationTimetableSearchRequest(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          selector: StationTimetableServiceDateSelector(
+            JourneyDate.parse('2026-08-11'),
+          ),
+        ),
+        sessionToken: 'unused',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    expect(apiBaseReads, 1);
+  });
+
+  test('로컬 데이터베이스와 API 주소가 있으면 실시간은 API를 호출한다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    late Uri requestedUri;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'status': 'FRESH',
+              'receivedAt': '2026-06-26T08:00:00Z',
+              'arrivals': <Object?>[],
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      apiBaseUri: () =>
+          Uri.parse('http://${server.address.host}:${server.port}'),
+      enablePushNotifications: false,
+    );
+
+    await dependencies.realtimeRepository.arrivals(
+      const RealtimeStationQuery(
+        stationId: 'station-sangnoksu',
+        lineId: '4',
+        stationQueryName: '상록수',
+      ),
+    );
+
+    expect(requestedUri.path, '/api/v1/realtime/arrivals');
+    expect(requestedUri.queryParameters['stationId'], 'station-sangnoksu');
+  });
+
+  test('시설 신고 기본 의존성은 API 주소가 없으면 호출 시점에 unavailable로 동작한다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      apiBaseUri: () => null,
+      enablePushNotifications: false,
+    );
+
+    await expectLater(
+      dependencies.reportRepository.createReport(
+        const FacilityReportRequest(
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-elevator-sangnoksu-1',
+          reportType: 'BROKEN',
+          description: '승강기 고장',
+        ),
+      ),
+      throwsA(isA<FacilityReportException>()),
+    );
+  });
+
+  test('userDatabase가 있으면 운행 공지 조회 의존성이 배선된다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    await catalogDatabase.seedBaselineIfEmpty();
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () => Uri.parse('https://example.test'),
+      enablePushNotifications: false,
+    );
+
+    expect(dependencies.noticeRepository, isA<NoticeRepository>());
+  });
+
+  test('운행 공지 의존성은 resolve 시점에 API 주소를 읽지 않고, 주소가 없으면 unavailable이다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    var apiBaseReads = 0;
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    await catalogDatabase.seedBaselineIfEmpty();
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () {
+        apiBaseReads++;
+        return null;
+      },
+      enablePushNotifications: false,
+    );
+
+    // 앱 시작 중에는 공개 공지 base URL을 강제 평가하지 않는다(선택 기능).
+    expect(apiBaseReads, 0);
+
+    final result = await dependencies.noticeRepository!.activeNotices();
+
+    expect(result.notices, isEmpty);
+    expect(result.stale, isFalse);
+    expect(result.state, NoticeResultState.unavailable);
+  });
+
+  test('기차 검색은 첫 호출까지 API 주소를 읽지 않고 주소가 없으면 unavailable이다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    var apiBaseReads = 0;
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      apiBaseUri: () {
+        apiBaseReads++;
+        return null;
+      },
+      enablePushNotifications: false,
+    );
+
+    expect(apiBaseReads, 0);
+    await expectLater(
+      dependencies.trainSearchRepository.stations('서울'),
+      throwsA(
+        isA<TrainSearchException>().having(
+          (error) => error.kind,
+          'kind',
+          TrainSearchFailureKind.unavailable,
+        ),
+      ),
+    );
+    expect(apiBaseReads, 1);
+  });
+
+  test('로컬 데이터베이스가 없으면 API 주소 없는 원격 fallback을 만들지 않는다', () {
+    expect(
+      () => AppDependencies.resolve(
+        apiBaseUri: () => null,
+        enablePushNotifications: false,
+      ),
+      throwsA(
+        isA<StateError>().having(
+          (error) => error.message,
+          'message',
+          'Release API base URL must be configured.',
+        ),
+      ),
+    );
+  });
+
+  test(
+    'Network Map capability는 station repository runtime type이 아니라 명시적 주입으로만 선택한다',
+    () {
+      final catalogDatabase = CatalogDatabase.memory();
+      final dualInterfaceStationRepository = DriftStationRepository(
+        database: catalogDatabase,
+      );
+      final explicitNetworkMapRepository = _InjectedNetworkMapRepository();
+      addTearDown(catalogDatabase.close);
+
+      final stationOnlyDependencies = AppDependencies.resolve(
+        repository: dualInterfaceStationRepository,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      expect(
+        stationOnlyDependencies.repository,
+        same(dualInterfaceStationRepository),
+      );
+      expect(
+        stationOnlyDependencies.networkMapRepository,
+        isNot(same(dualInterfaceStationRepository)),
+      );
+
+      final explicitDependencies = AppDependencies.resolve(
+        repository: dualInterfaceStationRepository,
+        networkMapRepository: explicitNetworkMapRepository,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      expect(
+        explicitDependencies.networkMapRepository,
+        same(explicitNetworkMapRepository),
+      );
+
+      final defaultCatalogDependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      expect(
+        defaultCatalogDependencies.networkMapRepository,
+        same(defaultCatalogDependencies.repository),
+      );
+    },
+  );
+
+  test(
+    'AppDependencies.resolve는 userDatabase가 있으면 삭제 저장소에 접수증 토큰 정리를 연결한다',
+    () async {
+      final catalogDatabase = CatalogDatabase.memory();
+      addTearDown(catalogDatabase.close);
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+      await catalogDatabase.customSelect('SELECT 1').get();
+      await userDatabase.customSelect('SELECT 1').get();
+      await userDatabase
+          .into(userDatabase.routeSearchHistory)
+          .insert(
+            user_db.RouteSearchHistoryCompanion.insert(
+              originStationId: 'station-sadang',
+              originStationName: '사당',
+              destinationStationId: 'station-gangnam',
+              destinationStationName: '강남',
+              region: '수도권',
+              searchedAt: DateTime.utc(2026, 8, 1),
+            ),
+          );
+
+      final dependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      await dependencies.userDataDeletionRepository!.deleteCurrentUserData();
+
+      expect(
+        await userDatabase.select(userDatabase.routeSearchHistory).get(),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'AppDependencies.close는 내부 생성 ApiClient를 닫고 외부 주입 client는 유지한다',
+    () async {
+      var closedServerHits = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+      server.listen((request) async {
+        closedServerHits += 1;
+        request.response.statusCode = HttpStatus.noContent;
+        await request.response.close();
+      });
+
+      final catalogDatabase = CatalogDatabase.memory();
+      addTearDown(catalogDatabase.close);
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+
+      final externalClient = ApiClient(
+        baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      );
+      addTearDown(() => externalClient.close(force: true));
+
+      final dependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        apiBaseUri: () =>
+            Uri.parse('http://${server.address.host}:${server.port}'),
+        userDataDeletionAuthProvider: const NoAuthorizationHeaderProvider(),
+        enablePushNotifications: false,
+      );
+
+      // 사전 생성된 클라이언트와 지연 생성된 클라이언트를 모두 활성화한 뒤 close()를 호출한다.
+      await dependencies.adRepository!.fetchActive(
+        AdPlacement.routeResultBottom,
+      );
+      await expectLater(
+        dependencies.trainSearchRepository.stations('서울'),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        dependencies.reportRepository.getReport('report-1'),
+        throwsA(isA<Object>()),
+      );
+      final hitsBeforeClose = closedServerHits;
+      dependencies.close(force: true);
+
+      await expectLater(
+        dependencies.adRepository!.fetchActive(AdPlacement.routeResultBottom),
+        throwsA(isA<ApiException>()),
+      );
+      await expectLater(
+        dependencies.trainSearchRepository.stations('서울'),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        dependencies.userDataDeletionRepository!.deleteCurrentUserData(),
+        throwsA(isA<Object>()),
+      );
+      // close() 이후 지연 생성된 noticeRepository도 live ApiClient를 열지 못한다.
+      await dependencies.noticeRepository!.activeNotices();
+      expect(closedServerHits, hitsBeforeClose);
+      final closedLazyAds = AdRepository.lazy(
+        () => Uri.parse('http://${server.address.host}:${server.port}'),
+      )..close(force: true);
+      await expectLater(
+        closedLazyAds.fetchActive(AdPlacement.routeResultBottom),
+        throwsA(isA<ApiException>()),
+      );
+      final externalResponse = await externalClient.getJson('/health');
+      expect(externalResponse.statusCode, HttpStatus.noContent);
+    },
+  );
+
+  test(
+    'createNextTrainWidgetTimetableRepository는 위임 메서드와 close를 연결한다',
+    () async {
+      var serverHits = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+      server.listen((request) async {
+        serverHits += 1;
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        await request.response.close();
+      });
+
+      final catalogDatabase = CatalogDatabase.memory();
+      addTearDown(catalogDatabase.close);
+
+      expect(
+        () => createNextTrainWidgetTimetableRepository(
+          catalogDatabase,
+          resolveBaseUri: () => null,
+        ),
+        throwsStateError,
+      );
+
+      final repo = createNextTrainWidgetTimetableRepository(
+        catalogDatabase,
+        resolveBaseUri: () =>
+            Uri.parse('http://${server.address.host}:${server.port}'),
+        createAttestor: () => _ThrowingWidgetAttestor(),
+      );
+      expect(repo, isA<CloseableStationTimetableRepository>());
+
+      final now = DateTime.utc(2026, 8, 1, 9);
+      await expectLater(
+        repo.loadNextStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          asOf: now,
+        ),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        repo.loadStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          dayType: station_models.StationTimetableDayType.weekday,
+          referenceDate: now,
+        ),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        repo.loadStationTimetableForDate(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          date: now,
+        ),
+        throwsA(isA<Object>()),
+      );
+      (repo as CloseableStationTimetableRepository).close(force: true);
+      expect(serverHits, 0);
+    },
+  );
+}
+
+class _ThrowingWidgetAttestor implements JourneyV3IntegrityAttestor {
+  @override
+  Future<String> attest(String requestHash) async {
+    throw StateError('attest failed');
+  }
+}
+
+class _InjectedNetworkMapRepository implements NetworkMapRepository {
+  @override
+  Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
+    return NetworkMapData(
+      regions: const [],
+      selectedRegion: region ?? '',
+      lines: const [],
+      stations: const [],
+      edges: const [],
+      positionSources: const [],
+    );
+  }
+}

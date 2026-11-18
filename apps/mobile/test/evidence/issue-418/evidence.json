@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "issue": 418,
+  "capturedAt": "2026-09-30",
+  "platform": "Android emulator (easysubway_ps16k_api36, debug build)",
+  "station": "상록수역 1번 출구",
+  "before": {
+    "baseCommit": "7101ee31",
+    "screenshot": "before-exit-card.png",
+    "accessibilityTree": "before-exit-card-ui.xml",
+    "semanticLabel": "1번 출구, 상록수역 1번 출구, 엘리베이터 없음, 계단 없는 이동 가능, 최근 확인 2026-06-19"
+  },
+  "after": {
+    "headCommit": "795384f9",
+    "screenshot": "after-exit-card.png",
+    "accessibilityTree": "after-exit-card-ui.xml",
+    "semanticLabel": "1번 출구, 상록수역 1번 출구, 엘리베이터 없음, 최근 확인 2026-06-19"
+  },
+  "assertions": [
+    "수정 전 출구 카드에 근거 없는 '계단 없는 이동 가능' 배지와 접근성 라벨이 노출된다",
+    "수정 후 출구 카드와 접근성 라벨에서 계단 관련 문구가 제거된다"
+  ],
+  "notes": [
+    "TalkBack 서비스를 켰으나 adb 입력으로는 스와이프 탐색이 동작하지 않아 낭독 음성은 캡처하지 못했고, 접근성 트리(uiautomator dump)의 content-desc가 TalkBack이 읽는 라벨이다",
+    "에뮬레이터 빌드는 sqlite3 3.5.2 hook의 macOS 호스트 판정 결함 때문에 임시 패치한 로컬 dependency override로 빌드했다(커밋 아님)"
+  ],
+  "files": [
+    {"path": "before-exit-card.png", "sha256": "0ddccbbb7cf2e7a677337723a16da563ccc8ce1231296c4522e4396c141d02c2"},
+    {"path": "before-exit-card-ui.xml", "sha256": "fea1e244b226e5f9d2c4b81dd52dd8ffc8d715598b52e6c971014513554b12f2"},
+    {"path": "after-exit-card.png", "sha256": "60d3aab93d5cfe4326c69fc28498f6fd1399c78db57d59077a44fde74e30e493"},
+    {"path": "after-exit-card-ui.xml", "sha256": "f729d3829d18acc50e3039c45ab7098fd89ca877368d561e2e013d0ee10afbee"}
+  ]
+}

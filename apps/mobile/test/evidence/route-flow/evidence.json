@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "issue": 509,
+  "capturedAt": "2026-10-24",
+  "platform": "Android emulator easysubway_ps16k_api36 (Pixel 6, Android 16 API 36, 글자 배율 1.5), adb screencap 1080x2400을 긴 변 1200으로 줄임. 실기기 Galaxy A17(SM-A175N, Android API 36, 글자 배율 1.0) 1장은 입력 칸만 잘라냄",
+  "assertions": [
+    "입력 칸은 노선 마크와 역할 글자 없이 출발 초록 점, 도착 빨강 점과 역 이름을 보인다",
+    "결과는 시간 줄(오늘 HH:MM 출발, 다음열차), 최단시간·최소환승 탭과 막차, 큰 총시간, 오전·오후 시각 | 운임, 출발 시각·노선 원·승차역을 단 구간 막대를 보인다",
+    "상세는 기준 시각(출발 대기), 노선색 세로 선과 시각 칩, 승차 단계(노선명·역·방면·칸-문), 열차 카드, 정차역 펼침, 하차 단계, 환승 도보와 환승 대기를 보인다",
+    "서버 응답에 없는 행선지·첫차·막차 표시·타는 곳·내리는 문·빠른 하차·환승 거리·운행 종료는 줄을 만들지 않는다",
+    "출발 시각 시트는 서버가 받는 출발 시각과 막차만 고르게 한다"
+  ],
+  "files": [
+    {
+      "path": "before-map-input.png",
+      "sha256": "756f69406da800582fa32e0531c911245e5e33033615663c2a8b37d78076b924",
+      "description": "수정 전(origin/main 5c770f8b) 노선도 출발·도착 칸: 역할 글자 \"출발역\"이 잘리고 노선 마크가 역 이름을 \"금남로4…\"로 줄인다(에뮬레이터, 광주권)"
+    },
+    {
+      "path": "after-map-input.png",
+      "sha256": "8fdaa0bf356d7b8bf2dfcc1ca4e499967ae0a8c8c7f88dfdc403a108b9f226f8",
+      "description": "수정 후 같은 칸: 초록 점과 \"금남로4가역\" 전체 이름, 도착 칸은 빨강 점과 \"도착역 입력\". 노선 마크와 역할 글자 없음"
+    },
+    {
+      "path": "after-device-map-input.png",
+      "sha256": "4dd953c2950da5ed28fe2975ee8b4244be4eb42777a56e97c7c55d25e8e8da57",
+      "description": "실기기 Galaxy A17(SM-A175N)에 adb install -r 한 수정 후 앱의 같은 칸(지도는 잘라냄): 초록 점 \"대야미역\", 빨강 점 \"도착역 입력\""
+    },
+    {
+      "path": "before-result.png",
+      "sha256": "5c010df70f5ee5e931958fdd00829ccdb57c9a436911f2d92443a58962030102",
+      "description": "수정 전 경로 결과: 출발 기준 칩 4개, 후보 카드 탭, \"137분\", \"05:11 출발 → 07:28 도착\", \"환승 1회 · 카드 2,850원 · 도보 185m\", 분만 있는 구간 막대"
+    },
+    {
+      "path": "after-result.png",
+      "sha256": "78b116eadcd5ce8e8215978c6adb124361b26683102ee37d401a9fd2ddf53bb4",
+      "description": "수정 후 경로 결과: 점 입력 카드, \"오늘 00:36 출발 ▾ | 다음열차\", 최단시간·최소환승 탭과 막차, \"2시간 17분\", \"오전 5:11 - 오전 7:28 | 2,850원\", 출발 시각·노선 원·승차역을 단 구간 막대, 기준 시각 줄"
+    },
+    {
+      "path": "before-detail-1.png",
+      "sha256": "144b55f3aeb4d649617f64192b2db6205a08edb6c2abbdf2f5cf7c208fcd0e40",
+      "description": "수정 전 상세: 작은 원 노드와 얇은 선, \"1호선 동두천 방면 05:11 출발\", \"빠른 환승 8-1\", 환승 노드 \"창동 환승 · 도보 2분\"(대기 없음)"
+    },
+    {
+      "path": "after-detail-1.png",
+      "sha256": "68911ea6ecbdb2b0de15b0b23ea7c6356a20f11ecef7e8beec0890ee5dcd0db3",
+      "description": "수정 후 상세: 노선색 굵은 선과 열차·도보 아이콘 원, 시각 칩, \"1호선 소요산역\", \"동두천역 방면\", \"빠른 환승: 8-1\", 열차 카드 05:11, 하차 \"창동역\", \"도보 2분 / 환승 대기 3분\""
+    },
+    {
+      "path": "before-detail-2.png",
+      "sha256": "6722edcc3370dd7c4a3737203a312758ccd2fa5628e050a2de86dfbc479f7250",
+      "description": "수정 전 상세 아래쪽: 둘째 탑승과 공유 버튼, 하차 단계 없음"
+    },
+    {
+      "path": "after-detail-2.png",
+      "sha256": "48999448b8456a411801273178835a898509125fd9f8056741513e857cbd7491",
+      "description": "수정 후 상세 아래쪽: \"4호선 창동역\", \"엘리베이터 가까운 문: 7-1\", 열차 카드, \"6개 역 이동 · 87분\", 하차 \"상록수역\" 07:28"
+    },
+    {
+      "path": "before-stops-expanded.png",
+      "sha256": "5107c43a991c54a42cce2f5bd9a7fe32e9cc301763c08b1c3fb4c7b445865b11",
+      "description": "수정 전 정차역 펼침: 역 이름 오른쪽에 시각"
+    },
+    {
+      "path": "after-stops-expanded.png",
+      "sha256": "250ab61c8a33ad9d1377f6babced9c70512b8506f67be57280a5dfee52563e2b",
+      "description": "수정 후 정차역 펼침: 노선색 선 위 흰 점과 \"05:13 동두천역\" 순서(승차·하차역 제외)"
+    },
+    {
+      "path": "before-late-result.png",
+      "sha256": "44cf9c221c3f827b07f371065d9f2fdf846e2df0e5e0df712a9348839b437d0f",
+      "description": "수정 전 늦은 밤 결과(충무로 00:55 → 서울역 환승 → 05:21 1호선): \"274분\""
+    },
+    {
+      "path": "after-late-result.png",
+      "sha256": "74432a97cddc630984c08718f6ebac8ab6cf5d08a6c60e244e930772cca66c80",
+      "description": "수정 후 같은 경로: \"4시간 34분\", \"오전 12:55 - 오전 5:29 | 1,750원\", 탭 최단시간·최소환승이 같은 경로를 가리킨다"
+    },
+    {
+      "path": "before-late-detail.png",
+      "sha256": "66fb5ed44cf70d14038b5c080716ab81766ca75b270a52f34d4d0ea2c4e76b50",
+      "description": "수정 전 늦은 밤 상세: 환승 노드에 대기 시간 없음"
+    },
+    {
+      "path": "after-late-detail.png",
+      "sha256": "4b52af2247dab78ac01f3b5b9669a50cdd15b01812618b1708f242396b56f97d",
+      "description": "수정 후 늦은 밤 상세: \"오전 12:46 기준 (출발 대기 9분)\", 환승 \"도보 3분 / 환승 대기 4시간 18분\"을 그대로 쓴다"
+    },
+    {
+      "path": "before-time-sheet.png",
+      "sha256": "218f02f70f6f73e3f6f4908d4dc61a2001975f8b0752747578ee37dda76f97e7",
+      "description": "수정 전 출발 시간: Material 날짜 선택기(그 뒤 시간 선택기)"
+    },
+    {
+      "path": "after-time-sheet.png",
+      "sha256": "3e7d5bcd86cbbc46756774a0fd2ae96e40896b6ca01f9a3f534888de5d9be327",
+      "description": "수정 후 \"출발 시각 설정\" 시트: 출발 시각·막차 칩, 날짜·오전오후·시·분 휠, 회색 \"지금 출발\"과 파랑 \"확인\""
+    },
+    {
+      "path": "after-time-sheet-last.png",
+      "sha256": "641411af959eee78ad1051cdfc4f6a7b84107935eaef3d75fca3d13aead8b97a",
+      "description": "수정 후 시트의 막차: 운행일 하나만 보내므로 날짜 휠만 남는다. 00:36은 03:00 운행일 경계 전이라 기본값이 \"10월 23일(금)\""
+    }
+  ],
+  "captureMethod": "경로 화면은 서버 세션과 기기 무결성 토큰이 있어야 열려, 커밋하지 않는 integration_test 하네스에서 JourneySearchScreen에 실제 JourneyApiRepository를 넣고 전송 계층(ApiClient.postJson)만 고정 응답으로 바꿔 debug APK로 빌드해 실행했다(#438 선례). 수정 전은 origin/main 5c770f8b의 git archive 사본, 수정 후는 이 브랜치에서 같은 하네스로 찍었다. 노선도 입력 칸은 일반 debug APK를 설치하고 노선도 역 탭 → \"출발역으로 설정\" 사용자 경로로 찍었다. lib/에 테스트 전용 hook 없음.",
+  "notes": "고정 응답의 역·노선·시각·운임은 화면 확인용이며 실제 시간표가 아니다. 앱은 TIMETABLE_REQUIRED만 요청하고 계약은 그 정책에서 실시간 시각을 금지하므로 열차 카드의 실시간 남은 분은 이 화면에 나오지 않는다(위젯 테스트로 확인). 실기기는 adb install -r만 했고, 출발 지정 뒤 \"경로 입력 지우기\"로 되돌렸으며 최근 검색 화면은 열지 않았다."
+}

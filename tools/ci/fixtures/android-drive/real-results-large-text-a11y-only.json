@@ -1,0 +1,8 @@
+{
+  "nativeGroups": {
+    "core_screen_a11y_smoke_test": {
+      "passed": 8,
+      "failed": []
+    }
+  }
+}

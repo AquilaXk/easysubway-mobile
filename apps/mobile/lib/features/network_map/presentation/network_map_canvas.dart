@@ -1,0 +1,1305 @@
+import 'dart:async';
+import 'dart:math' as math;
+import 'dart:ui' show FramePhase;
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+
+import '../../../accessible_design.dart';
+import '../../../design_tokens.dart';
+import '../../../mobile_error_reporter.dart';
+import '../../route_draft/domain/route_draft.dart';
+import '../data/network_map_attribution_cache.dart';
+import '../data/network_map_owner_labels_cache.dart';
+import '../data/network_map_owner_nodes_cache.dart';
+import '../domain/map_camera.dart';
+import '../domain/network_map_models.dart';
+import '../domain/network_map_station_aligner.dart';
+import '../domain/network_map_station_selection.dart';
+import '../domain/route_map_design_space.dart';
+import '../domain/route_map_line_overlay_index.dart'
+    show routeMapBasemapRegionId;
+import '../domain/route_map_owner_labels.dart';
+import '../domain/route_map_owner_nodes.dart';
+import '../domain/structured_route_map.dart';
+import 'network_map_camera_policy.dart';
+import 'network_map_draft_pin.dart';
+import 'network_map_geometry.dart';
+import 'network_map_overlay_inset.dart';
+import 'network_map_unavailable_states.dart';
+import 'route_map_basemap_view.dart';
+import 'route_map_owner_label_bounds.dart';
+import 'station_popover_menu.dart';
+import 'station_fan_menu_policy.dart';
+import 'station_hit_target.dart';
+import 'structured_route_map_painter.dart';
+
+/// 역 말풍선이 가리키는 [station]에서 할 동작. 줄 수 없으면 null이다.
+typedef StationPopoverActionFor =
+    VoidCallback? Function(NetworkMapStation station);
+
+/// 노선 선택이 카메라에 보내는 요청. 같은 노선을 다시 골라도 [revision]이 달라
+/// 카메라가 다시 그 노선 역 전체로 간다.
+typedef NetworkMapLineFocusRequest = ({String lineId, int revision});
+
+class NetworkMapCanvas extends StatefulWidget {
+  const NetworkMapCanvas({
+    super.key,
+    required this.data,
+    required this.initialViewport,
+    required this.focusedStationId,
+    required this.preserveFocusedStationScale,
+    required this.selectedStationId,
+    required this.selectionClearRevision,
+    required this.onSetOrigin,
+    required this.onSetWaypoint,
+    required this.onSetDestination,
+    required this.onClearOrigin,
+    required this.onClearWaypoint,
+    required this.onClearDestination,
+    required this.onViewportChanged,
+    required this.onSelectionDismissed,
+    required this.onStationTapped,
+    this.realtimeActionFor,
+    this.timetableActionFor,
+    this.originStationId,
+    this.waypointStationId,
+    this.destinationStationId,
+    this.focusedLine,
+  });
+
+  final NetworkMapData data;
+  final Rect? initialViewport;
+  final String? focusedStationId;
+  final bool preserveFocusedStationScale;
+  final String? selectedStationId;
+  final int selectionClearRevision;
+
+  /// #1948: draft 핀을 그릴 지정 역 id (없으면 null).
+  final String? originStationId;
+  final String? waypointStationId;
+  final String? destinationStationId;
+
+  final ValueChanged<NetworkMapStation> onSetOrigin;
+  final ValueChanged<NetworkMapStation> onSetWaypoint;
+  final ValueChanged<NetworkMapStation> onSetDestination;
+
+  /// #2109: 역 말풍선에서 이미 지정된 슬롯을 재탭하면 해당 슬롯을 비운다. clear는
+  /// 슬롯 단위라 역 인자가 불필요(컨트롤러가 슬롯을 비운다).
+  final VoidCallback onClearOrigin;
+  final VoidCallback onClearWaypoint;
+  final VoidCallback onClearDestination;
+  final ValueChanged<Rect> onViewportChanged;
+
+  /// #2109 역 말풍선이 부모(검색 결과 탭 등)에서 [selectedStationId]로 열린 경우,
+  /// 메뉴가 닫힐 때(액션 선택·닫기·배경 탭) 부모의 선택 상태도 비워야 한다.
+  /// 내부 [_selectedStation]만 null로 두면 prop이 다시 메뉴를 띄운다.
+  final VoidCallback onSelectionDismissed;
+
+  /// #2200 캔버스에서 역 노드를 탭하면(역 말풍선 표시와 동시에) 부모가 그 역을
+  /// 해석해 하단 역 정보 패널을 함께 열도록 통지한다. 검색·focus 채널로 열린
+  /// 역 말풍선([selectedStationId] prop 경로)는 이 콜백을 태우지 않는다.
+  final ValueChanged<NetworkMapStation> onStationTapped;
+
+  /// 역 말풍선 아랫줄의 실시간·전체 시간표. 말풍선이 가리키는 역마다 부모에게 묻고,
+  /// 부모가 그 역의 하단 패널을 열어 둔 동안만 동작을 돌려준다. null이면 그 칸을
+  /// 그리지 않는다.
+  final StationPopoverActionFor? realtimeActionFor;
+  final StationPopoverActionFor? timetableActionFor;
+
+  /// 노선 줄·노선 선택 시트에서 고른 노선. 요청이 바뀔 때마다 카메라가 그 노선
+  /// 역이 모두 보이게 옮기고, 바탕을 흐린 채 그 노선을 진하게 그린다.
+  final NetworkMapLineFocusRequest? focusedLine;
+
+  @override
+  State<NetworkMapCanvas> createState() => _NetworkMapCanvasState();
+}
+
+/// #1643 성능 QA: 노선도 프레임 한 장의 [FrameTiming]을 logcat 한 줄로 만든다.
+/// `tools/mobile/analyze-route-map-android-evidence.mjs`가 이 줄을 읽는다.
+/// frame과 vsyncStartUs로 빠진 프레임 번호와 vsync 간격을 센다(#517).
+@visibleForTesting
+String routeMapFrameTimingLine(FrameTiming timing) {
+  String ms(Duration duration) =>
+      (duration.inMicroseconds / 1000.0).toStringAsFixed(2);
+  return 'routeMapFrame '
+      'buildMs=${ms(timing.buildDuration)} '
+      'rasterMs=${ms(timing.rasterDuration)} '
+      'totalMs=${ms(timing.totalSpan)} '
+      'frame=${timing.frameNumber} '
+      'vsyncStartUs=${timing.timestampInMicroseconds(FramePhase.vsyncStart)}';
+}
+
+/// run-route-map-android-evidence.sh가 'routeMapFrame' 라인을 grep해 jank·백분위를
+/// 산출한다(Flutter는 dumpsys gfxinfo로 프레임이 안 잡혀 FrameTiming으로 계측).
+void _logRouteMapFrameTimings(List<FrameTiming> timings) {
+  for (final timing in timings) {
+    // debugPrint는 throttle(debugPrintThrottled)이라 pan 중 다량의 프레임 로그를
+    // 큐잉·드롭해 janky burst 구간을 undercount할 수 있다(jank% 하향 편향). 측정
+    // 정확도를 위해 unthrottled synchronous 출력으로 모든 프레임을 남긴다.
+    debugPrintSynchronously(routeMapFrameTimingLine(timing));
+  }
+}
+
+class _NetworkMapCanvasState extends State<NetworkMapCanvas>
+    with WidgetsBindingObserver {
+  String? _layoutKey;
+  String? _layoutRegion;
+  MapCameraState? _camera;
+  MapCameraState? _pendingCamera;
+  bool _cameraFrameCallbackScheduled = false;
+  bool _gestureActive = false;
+  (String, bool)? _cameraFocusedStationKey;
+  NetworkMapLineFocusRequest? _cameraFocusedLine;
+  MapCameraState? _gestureStartCamera;
+  Offset? _gestureStartFocalPoint;
+  // 상단 오버레이(상단바·알림 바)에 가려지는 지도 위쪽 높이. 핀과 역 말풍선은 이 아래에
+  // 둔다. 측정 전에는 0이다.
+  NetworkMapTopInset _topInset = const NetworkMapTopInsetUnmeasured();
+
+  /// 측정된 가려진 높이. 측정 전에는 0이다. 제스처·reveal·메뉴 배치는 지도를 처음
+  /// 그린 뒤(= 측정 뒤)에만 실행되므로 0이 추정값으로 쓰이지 않는다.
+  double get _obscuredTop => switch (_topInset) {
+    NetworkMapTopInsetMeasured(:final height) => height,
+    NetworkMapTopInsetUnmeasured() => 0,
+  };
+  // 사용자가 마지막으로 지정한 핀의 역 id. 오버레이가 커질 때 이 핀만 기준으로 패닝한다.
+  List<String> _designatedPinStationIds = const [];
+  // 마지막 핀 지정 뒤 사용자가 지도를 직접 움직였는지. 움직였다면 그 위치를 존중한다.
+  bool _cameraMovedSinceDesignation = false;
+  String? _geometryCacheKey;
+  NetworkMapGeometry? _geometryCache;
+  // 구조화 canvas 렌더러(#1641) 파생 데이터 캐시 — region 단위로 재계산.
+  String? _structuredCacheKey;
+  StructuredRouteMap? _structuredRouteMapCache;
+  Map<String, Color>? _structuredLineColorsCache;
+  Map<String, String>? _structuredLabelTextCache;
+  Map<String, String>? _structuredLineBadgeLabelCache;
+  // 역 말풍선 환승 앵커(#2192): 렌더 캡슐 중심 유도에 쓰는 파생값. structured 캐시와
+  // 같은 키로 무효화한다. designScale은 렌더러 모드 판정과 동일 값이어야 한다.
+  double? _structuredDesignScaleCache;
+  Map<String, RouteMapTransferGroup>? _structuredTransferGroupCache;
+  NetworkMapStation? _selectedStation;
+  // region → attribution 표시 문자열(#1951). manifest 로드 전에는 null로 두고
+  // attribution을 표시하지 않는다(로드 실패 시에도 동일하게 조용히 미표기).
+  Map<String, String>? _attributionTextByRegion;
+  // basemap 6차(#2068): asset id(seoul/busan/...) → station명 → 오너 라벨 앵커.
+  // 소비처는 (1) geometry bounds 확장(networkMapOwnerLabelSourceRects — 라벨까지
+  // 담아 탭 히트·팬 한계를 맞춘다)과 (2) 초기 카메라 가독 배율뿐이다. 라벨 렌더는
+  // canonical SVG 바탕층이 담당한다(#2068 SVG 충실도). 로드 전·실패 시 null →
+  // 두 소비처 모두 기존(라벨 미반영) 동작으로 안전 폴백한다.
+  Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>? _ownerLabelsByRegion;
+  Map<String, RouteMapOwnerNodesLookup>? _ownerNodesByRegion;
+  // 초기 카메라 가독 배율(#2068 트랙 QA 후속) 캐시 — _readableInitialMapScaleFor.
+  double? _readableInitialMapScaleCache;
+  String? _readableInitialMapScaleCacheKey;
+  // onTapUp 경로에서만 쓰는 stationLinesById를 매 build(팬 프레임)마다 재계산하지 않도록
+  // region·stations identity로 캐시한다(#1973). 800역/24노선 재계산이 build 스파이크 원인.
+  NetworkMapData? _alignedDataCache;
+  Object? _alignedDataInput;
+  Object? _alignedDataOwnerNodes;
+  Object? _alignedDataOwnerEntries;
+  List<NetworkMapStation>? _stationLookupSource;
+  NetworkMapStationLookup? _stationLookupCache;
+
+  NetworkMapStationLookup _stationLookup(List<NetworkMapStation> stations) {
+    final cached = _stationLookupCache;
+    if (identical(_stationLookupSource, stations) && cached != null) {
+      return cached;
+    }
+    final built = NetworkMapStationLookup.fromStations(stations);
+    _stationLookupSource = stations;
+    _stationLookupCache = built;
+    return built;
+  }
+
+  NetworkMapData _alignedData(NetworkMapData data) {
+    final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
+    final ownerNodes = basemapAssetId == null
+        ? null
+        : _ownerNodesByRegion?[basemapAssetId];
+    final ownerEntries = basemapAssetId == null
+        ? null
+        : _ownerLabelsByRegion?[basemapAssetId];
+    if (identical(_alignedDataInput, data) &&
+        identical(_alignedDataOwnerNodes, ownerNodes) &&
+        identical(_alignedDataOwnerEntries, ownerEntries) &&
+        _alignedDataCache != null) {
+      return _alignedDataCache!;
+    }
+    final aligned = alignNetworkMapDataForBasemap(
+      data,
+      ownerNodes: ownerNodes,
+      ownerEntries: ownerEntries,
+    );
+    _alignedDataInput = data;
+    _alignedDataOwnerNodes = ownerNodes;
+    _alignedDataOwnerEntries = ownerEntries;
+    _alignedDataCache = aligned;
+    return aligned;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // #1643 성능 QA: 노선도가 떠 있는 동안 프레임 build/raster 시간을 logcat에
+    // 기록한다. 구조화 canvas는 Flutter 자체 렌더 파이프라인이라 dumpsys gfxinfo로
+    // 프레임이 잡히지 않으므로 FrameTiming으로 계측한다. release에는 넣지 않는다.
+    if (!kReleaseMode) {
+      SchedulerBinding.instance.addTimingsCallback(_logRouteMapFrameTimings);
+    }
+    unawaited(_loadAttributionText());
+    // #2068 트랙 QA 후속: 초기 카메라 가독 배율이 sidecar에 의존하므로, 이미
+    // 해석된 값이 있으면 **첫 build 전에 동기로** 시드해 과축소 → 확대 줌 팝을
+    // 없앤다. 값이 없을 때만 비동기 로드를 태운다(선행 로드가 아직 끝나지 않은
+    // 경합 케이스 — 도착하면 setState로 카메라가 한 번 재계산된다).
+    _ownerLabelsByRegion = cachedNetworkMapOwnerLabelsByRegion;
+    if (_ownerLabelsByRegion == null) {
+      unawaited(_loadOwnerLabels());
+    }
+    _ownerNodesByRegion = cachedNetworkMapOwnerNodesByRegion;
+    if (_ownerNodesByRegion == null) {
+      unawaited(_loadOwnerNodes());
+    }
+  }
+
+  Future<void> _loadAttributionText() async {
+    try {
+      final byRegion = await loadNetworkMapAttributionTextByRegion();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _attributionTextByRegion = byRegion);
+    } catch (error, stackTrace) {
+      // asset 로드/파싱 실패는 attribution 미표기로 폴백한다(#1951). 일시 오류가
+      // 영구 미표기로 고정되지 않도록 실패한 Future는 캐시에서 비워 다음 마운트
+      // 때 재시도되게 한다 — 화면은 죽지 않되, 원인 파악을 위해 예외는 리포터로
+      // 남긴다.
+      resetNetworkMapAttributionCache();
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '지도 datapack manifest에서 attribution 정보를 불러오는 중 예외가 발생했습니다.',
+      );
+    }
+  }
+
+  Future<void> _loadOwnerLabels() async {
+    try {
+      final byRegion = await loadNetworkMapOwnerLabelsByRegion();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _ownerLabelsByRegion = byRegion);
+    } catch (error, stackTrace) {
+      // #2068 6차: 로드/파싱 실패는 basemap 라벨의 4차 자동 솔버 폴백으로
+      // 안전 처리한다(크래시 금지). 재시도를 위해 캐시를 비운다.
+      invalidateNetworkMapOwnerLabelsLoad();
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '노선도 오너 라벨 sidecar를 불러오는 중 예외가 발생했습니다.',
+      );
+    }
+  }
+
+  Future<void> _loadOwnerNodes() async {
+    try {
+      final byRegion = await loadNetworkMapOwnerNodesByRegion();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _ownerNodesByRegion = byRegion);
+    } catch (error, stackTrace) {
+      invalidateNetworkMapOwnerNodesLoad();
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '노선도 오너 노드 sidecar를 불러오는 중 예외가 발생했습니다.',
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    if (!kReleaseMode) {
+      SchedulerBinding.instance.removeTimingsCallback(_logRouteMapFrameTimings);
+    }
+    WidgetsBinding.instance.removeObserver(this);
+    _pendingCamera = null;
+    super.dispose();
+  }
+
+  /// 카메라가 source 경계 밖으로 나갈 수 있는 여유. 제스처 clamp와 핀 reveal이 같은
+  /// 값을 써야 reveal이 옮긴 카메라를 다음 제스처가 되돌려 핀을 다시 가리지 않는다.
+  double get _cameraViewportMargin => networkMapCameraClampMargin(_obscuredTop);
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final previous = _obscuredTop;
+    _topInset = NetworkMapObscuredTop.of(context);
+    final next = _obscuredTop;
+    // 자동 패닝은 사용자가 방금 지정한 대상에만 한다.
+    // - 줄어드는 변화는 되돌리지 않는다(패닝이 한쪽으로 쌓이지 않는다).
+    // - 커지는 변화는 마지막 지정 뒤 사용자가 지도를 움직이지 않았을 때만, 마지막 지정
+    //   핀과 열린 역 말풍선을 기준으로 패닝한다. 역 말풍선은 제스처가 시작되면 닫히므로
+    //   열려 있다면 사용자가 움직이지 않은 것이다.
+    // - 저장된 viewport를 복원해 처음 열릴 때는 지정한 대상이 없고(핀은 didUpdateWidget의
+    //   변화로만 지정으로 친다) 첫 측정(0에서 늘어남)도 움직일 대상이 없어 패닝하지 않는다.
+    if (next <= previous) {
+      return;
+    }
+    _scheduleReveal(
+      pinStationIds: _cameraMovedSinceDesignation
+          ? const []
+          : _designatedPinStationIds,
+      menu: true,
+    );
+  }
+
+  /// #2109 Fix: 검색 채널(인플레이스 `_focusStationFromSearch` + 풀페이지
+  /// `focusStationRequestId` 소비)로 역 말풍선이 [selectedStationId] prop을 통해
+  /// 열릴 때도, 지도 탭(`_selectStation`)과 동일하게 화면 경계에서 메뉴가 잘리면
+  /// 카메라를 최소 패닝해 전부 노출한다. prop이 null→역 id로 전이하는 순간을
+  /// 감지해 카메라 focus가 확정되는 다음 프레임에 패닝을 예약한다.
+  @override
+  void didUpdateWidget(covariant NetworkMapCanvas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectionClearRevision != oldWidget.selectionClearRevision) {
+      _selectedStation = null;
+    }
+    final designated = _newlyDesignatedPinStationIds(oldWidget);
+    if (designated.isNotEmpty) {
+      _designatedPinStationIds = designated;
+      // 제스처 중에 지정됐다면 사용자는 이미 지도를 움직이고 있다.
+      _cameraMovedSinceDesignation = _gestureActive;
+      _scheduleReveal(pinStationIds: designated);
+    }
+    final selectedId = widget.selectedStationId;
+    if (selectedId != null && selectedId != oldWidget.selectedStationId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || widget.selectedStationId != selectedId) {
+          return;
+        }
+        final data = _alignedData(widget.data);
+        final station = _stationLookup(data.stations).byId(selectedId);
+        if (station != null) {
+          _panCameraToRevealStationPopover(station);
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('networkMapSurface'),
+      decoration: const BoxDecoration(
+        color: EasySubwayAccessibleColors.surfaceDefault,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // 상단 오버레이를 아직 측정하지 못했으면 카메라를 정하지 않는다. 추정 높이로
+          // 그리면 측정 뒤 지도가 점프한다. 측정은 첫 프레임 직후에 끝나 바로 다음
+          // 프레임에 올바른 위치로 처음 그린다.
+          if (_topInset is NetworkMapTopInsetUnmeasured) {
+            return const SizedBox.shrink();
+          }
+          final data = _alignedData(widget.data);
+          final geometry = _geometryFor(data);
+          final hitGeometry = NetworkMapStationHitGeometry(geometry: geometry);
+          final camera = _resolveCameraForLayout(data, geometry, constraints);
+          if (data.stations.isEmpty) {
+            return const OriginalRouteMapUnavailable();
+          }
+          final selectedStation = _selectedStationIn(data);
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: _buildStructuredRouteMapCanvas(
+                  camera,
+                  geometry.origin,
+                  data,
+                ),
+              ),
+              Positioned.fill(child: _buildGestureSurface(camera, hitGeometry)),
+              if (!_gestureActive)
+                ..._buildStationHitTargets(camera, hitGeometry),
+              ..._buildDraftPinOverlays(camera, data, geometry),
+              if (!_gestureActive && selectedStation != null)
+                _buildStationPopoverOverlay(
+                  selectedStation,
+                  camera,
+                  geometry,
+                  constraints,
+                ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  MapCameraState _resolveCameraForLayout(
+    NetworkMapData data,
+    NetworkMapGeometry geometry,
+    BoxConstraints constraints,
+  ) {
+    final fullBounds = Rect.fromLTWH(0, 0, geometry.width, geometry.height);
+    // #2068 트랙 QA 후속: 저장 viewport가 없을 때의 초기 카메라는
+    // 콘텐츠 중앙을 오너 라벨이 읽히는 배율로 연다. 오너 라벨 sidecar는
+    // 비동기 로드라 로드 전후로 가독 배율이 바뀌므로 layoutKey에 포함해
+    // 로드 완료 시 초기 카메라가 다시 계산되게 한다.
+    final readableScale = _readableInitialMapScaleFor(data);
+    final viewport = Size(
+      constraints.hasBoundedWidth ? constraints.maxWidth : 0,
+      constraints.hasBoundedHeight ? constraints.maxHeight : 0,
+    );
+    // 초기 화면은 오버레이에 덮이지 않는 영역에 맞춘다.
+    final obscuredTop = networkMapUsableObscuredTop(
+      _obscuredTop,
+      viewport.height,
+    );
+    final visibleConstraints = constraints.copyWith(
+      maxHeight: constraints.maxHeight - obscuredTop,
+    );
+    final initialCameraBounds = networkMapInitialCameraBounds(
+      fullBounds: fullBounds,
+      regionInitialBounds: geometry.initialBounds,
+      viewport: Size(
+        visibleConstraints.hasBoundedWidth ? visibleConstraints.maxWidth : 0,
+        visibleConstraints.hasBoundedHeight ? visibleConstraints.maxHeight : 0,
+      ),
+      readableScale: readableScale,
+    );
+    // 축소 하한(#2600)은 초기 화면 배율로 캡해 첫 화면을 절대 확대하지
+    // 않게 한다 — sidecar 미로드 프레임처럼 초기 배율이 하한보다 낮은
+    // 상태가 있고, 거기서 밀어올리면 #1764 E·#2062 계약이 깨진다.
+    final minScale = networkMapMinimumScaleForRegion(
+      data.selectedRegion,
+      initialFitScale: networkMapContainFitScale(
+        initialCameraBounds,
+        visibleConstraints,
+      ),
+    );
+    final clampMargin = networkMapCameraClampMargin(obscuredTop);
+    final savedViewport = widget.initialViewport;
+    final restoresSavedViewport =
+        savedViewport != null &&
+        savedViewport.overlaps(fullBounds.inflate(100)) &&
+        savedViewport.width <= fullBounds.width * 2 &&
+        savedViewport.height <= fullBounds.height * 2;
+    // 저장 viewport는 마지막 카메라가 본 뷰포트 전체(오버레이 밑 포함)라
+    // 그대로 복원하면 마지막 화면과 같다. 오버레이 높이를 또 반영하면 한 번
+    // 열 때마다 어긋난다.
+    final initialCamera = networkMapInitialCameraForRegion(
+      regionBounds: restoresSavedViewport ? savedViewport : initialCameraBounds,
+      fullBounds: fullBounds,
+      viewport: viewport,
+      minScale: minScale,
+      obscuredTop: restoresSavedViewport ? 0 : obscuredTop,
+    );
+    final layoutKey =
+        '${data.selectedRegion}:${geometry.width}:${geometry.height}:${constraints.maxWidth}:${constraints.maxHeight}:$readableScale';
+    if (_layoutKey != layoutKey) {
+      final previousCamera = _camera;
+      final preserveCamera =
+          widget.preserveFocusedStationScale &&
+          widget.focusedStationId != null &&
+          _layoutRegion == data.selectedRegion &&
+          previousCamera != null;
+      _layoutKey = layoutKey;
+      _layoutRegion = data.selectedRegion;
+      _pendingCamera = null;
+      _gestureActive = false;
+      _cameraFocusedStationKey = null;
+      _cameraFocusedLine = null;
+      _camera = preserveCamera
+          ? previousCamera
+                .copyWith(
+                  sourceBounds: fullBounds,
+                  viewportSize: viewport,
+                  minScale: math.min(previousCamera.scale, minScale),
+                  initialScale: initialCamera.initialScale,
+                  revision: previousCamera.revision + 1,
+                )
+                .clamped(viewportMargin: clampMargin)
+          : initialCamera;
+    }
+    // 같은 build에서 새 layoutKey의 카메라를 항상 초기화한다.
+    final camera = _focusCameraOnStation(
+      _camera!,
+      data,
+      geometry,
+      viewport: viewport,
+      fullBounds: fullBounds,
+      initialCameraBounds: initialCameraBounds,
+      minScale: minScale,
+      obscuredTop: obscuredTop,
+      clampMargin: clampMargin,
+    );
+    return _focusCameraOnLine(
+      camera,
+      data,
+      geometry,
+      constraints,
+      initialBounds: initialCameraBounds,
+      minScale: minScale,
+      obscuredTop: obscuredTop,
+    );
+  }
+
+  MapCameraState _focusCameraOnStation(
+    MapCameraState camera,
+    NetworkMapData data,
+    NetworkMapGeometry geometry, {
+    required Size viewport,
+    required Rect fullBounds,
+    required Rect initialCameraBounds,
+    required double minScale,
+    required double obscuredTop,
+    required double clampMargin,
+  }) {
+    final focusedStation = widget.focusedStationId == null
+        ? null
+        : _stationLookup(data.stations).byId(widget.focusedStationId);
+    final focusedStationKey = focusedStation == null
+        ? null
+        : (focusedStation.id, widget.preserveFocusedStationScale);
+    if (!_gestureActive &&
+        focusedStation != null &&
+        _cameraFocusedStationKey != focusedStationKey) {
+      final stationCenter = Offset(
+        geometry.x(focusedStation),
+        geometry.y(focusedStation),
+      );
+      final focusedCamera = widget.preserveFocusedStationScale
+          ? camera
+                .copyWith(
+                  center: networkMapCameraCenterForVisibleCenter(
+                    stationCenter,
+                    scale: camera.scale,
+                    obscuredTop: obscuredTop,
+                  ),
+                  revision: camera.revision + 1,
+                )
+                .clamped(viewportMargin: clampMargin)
+          : networkMapStationFocusCameraForRegion(
+              initialBounds: initialCameraBounds,
+              stationCenter: stationCenter,
+              fullBounds: fullBounds,
+              viewport: viewport,
+              minScale: minScale,
+              currentScale: camera.scale,
+              revision: camera.revision + 1,
+              initialScaleOverride: camera.initialScale,
+              obscuredTop: obscuredTop,
+            );
+      _cameraFocusedStationKey = focusedStationKey;
+      _pendingCamera = null;
+      _camera = focusedCamera;
+      widget.onViewportChanged(focusedCamera.visibleSourceRect);
+      return focusedCamera;
+    }
+    if (focusedStation == null) {
+      _cameraFocusedStationKey = null;
+    }
+    return camera;
+  }
+
+  Widget _buildGestureSurface(
+    MapCameraState camera,
+    NetworkMapStationHitGeometry hitGeometry,
+  ) {
+    return Semantics(
+      label: '노선도',
+      hint: '역을 누르면 출발, 도착, 역 정보를 볼 수 있어요',
+      child: Listener(
+        onPointerCancel: (_) => _endScaleGesture(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onScaleStart: (details) {
+            _cameraMovedSinceDesignation = true;
+            if (!_gestureActive) {
+              setState(() {
+                _gestureActive = true;
+                _clearSelectionAndNotify();
+              });
+            }
+            _gestureStartCamera = camera;
+            _gestureStartFocalPoint = details.localFocalPoint;
+          },
+          onScaleUpdate: _updateCameraForGesture,
+          onScaleEnd: (_) => _endScaleGesture(),
+          onTapUp: (details) {
+            _openNearestStation(details.localPosition, hitGeometry, camera);
+          },
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildStationHitTargets(
+    MapCameraState camera,
+    NetworkMapStationHitGeometry hitGeometry,
+  ) {
+    return [
+      for (final station in hitGeometry.visibleCanonicalStations(
+        camera: camera,
+      ))
+        Positioned.fromRect(
+          rect: hitGeometry.viewportBoundsFor(
+            station,
+            camera: camera,
+            nodeRadius: 24 / camera.scale,
+            labelHeight: 40 / camera.scale,
+          ),
+          child: NetworkMapStationHitTarget(
+            key: Key(
+              'networkMapStation-${station.id.replaceFirst('station-', '')}-${station.lineId}',
+            ),
+            station: station,
+            onTap: () => _selectStation(station),
+          ),
+        ),
+    ];
+  }
+
+  List<Widget> _buildDraftPinOverlays(
+    MapCameraState camera,
+    NetworkMapData data,
+    NetworkMapGeometry geometry,
+  ) {
+    final lookup = _stationLookup(data.stations);
+    final originStation = lookup.byId(widget.originStationId);
+    final waypointStation = lookup.byId(widget.waypointStationId);
+    final destinationStation = lookup.byId(widget.destinationStationId);
+    // 드래프트 핀은 줌/팬 중에도 유지한다(역 hit·역 말풍선과 달리 상태
+    // 표시). Positioned는 Stack 직접 자식이어야 하므로, 제스처 중
+    // 포인터 통과는 핀 위젯 내부 IgnorePointer로 처리한다.
+    return [
+      if (originStation != null)
+        NetworkMapDraftPin(
+          key: const Key('networkMapDraftPin-origin'),
+          station: originStation,
+          // 환승역은 캡슐 중심, 일반역은 노드 중심(역 말풍선과 동일 앵커).
+          anchorSource: _stationPopoverAnchorSource(originStation, geometry),
+          camera: camera,
+          label: '출발',
+          role: EasySubwayFanMenuColors.departureRole,
+          semanticSuffix: '출발 지정됨',
+          clearButtonKey: const Key('networkMapDraftPinClear-origin'),
+          ignorePointers: _gestureActive,
+          onClear: widget.onClearOrigin,
+        ),
+      if (waypointStation != null)
+        NetworkMapDraftPin(
+          key: const Key('networkMapDraftPin-waypoint'),
+          station: waypointStation,
+          anchorSource: _stationPopoverAnchorSource(waypointStation, geometry),
+          camera: camera,
+          label: '경유',
+          role: EasySubwayFanMenuColors.waypointRole,
+          semanticSuffix: '경유 지정됨',
+          clearButtonKey: const Key('networkMapDraftPinClear-waypoint'),
+          ignorePointers: _gestureActive,
+          onClear: widget.onClearWaypoint,
+        ),
+      if (destinationStation != null)
+        NetworkMapDraftPin(
+          key: const Key('networkMapDraftPin-destination'),
+          station: destinationStation,
+          anchorSource: _stationPopoverAnchorSource(
+            destinationStation,
+            geometry,
+          ),
+          camera: camera,
+          label: '도착',
+          role: EasySubwayFanMenuColors.arrivalRole,
+          semanticSuffix: '도착 지정됨',
+          clearButtonKey: const Key('networkMapDraftPinClear-destination'),
+          ignorePointers: _gestureActive,
+          onClear: widget.onClearDestination,
+        ),
+    ];
+  }
+
+  Widget _buildStationPopoverOverlay(
+    NetworkMapStation selectedStation,
+    MapCameraState camera,
+    NetworkMapGeometry geometry,
+    BoxConstraints constraints,
+  ) {
+    return Builder(
+      builder: (context) {
+        final stationPoint = camera.sourceToViewportPoint(
+          _stationPopoverTailAnchorSource(selectedStation, geometry),
+        );
+        // #2109: 배치 규칙은 stationPopoverPlacement 단일 함수가 소유한다
+        // (카메라 최소 패닝 _panCameraToRevealStationPopover와 동일 규칙 소비).
+        final placement = stationPopoverPlacement(
+          stationPoint: stationPoint,
+          viewport: Size(constraints.maxWidth, constraints.maxHeight),
+          clampPosition: true,
+          topInset: _obscuredTop,
+        );
+        final left = placement.left;
+        final menuWidth = placement.menuWidth;
+        final top = placement.top;
+        final selectedSlots = stationPopoverSelectedSlots(
+          stationId: selectedStation.id,
+          originStationId: widget.originStationId,
+          waypointStationId: widget.waypointStationId,
+          destinationStationId: widget.destinationStationId,
+        );
+        return Positioned(
+          key: const Key('networkMapStationSheet'),
+          left: left,
+          top: top,
+          width: menuWidth,
+          child: StationPopoverMenu(
+            key: ValueKey('stationPopoverMenu-${selectedStation.id}'),
+            width: menuWidth,
+            stationName: selectedStation.displayName,
+            selectedSlots: selectedSlots,
+            disabledSlots: stationPopoverDisabledSlots(
+              stationId: selectedStation.id,
+              originStationId: widget.originStationId,
+              waypointStationId: widget.waypointStationId,
+              destinationStationId: widget.destinationStationId,
+            ),
+            onAction: (slot) {
+              if (stationPopoverShouldClear(slot, selectedSlots)) {
+                // 재탭 → 해당 슬롯 해제.
+                switch (slot) {
+                  case RouteDraftSlot.origin:
+                    widget.onClearOrigin();
+                  case RouteDraftSlot.waypoint:
+                    widget.onClearWaypoint();
+                  case RouteDraftSlot.destination:
+                    widget.onClearDestination();
+                }
+              } else {
+                switch (slot) {
+                  case RouteDraftSlot.origin:
+                    widget.onSetOrigin(selectedStation);
+                  case RouteDraftSlot.waypoint:
+                    widget.onSetWaypoint(selectedStation);
+                  case RouteDraftSlot.destination:
+                    widget.onSetDestination(selectedStation);
+                }
+              }
+              _dismissSelection();
+            },
+            onClose: _dismissSelection,
+            onRealtime: _dismissingAfter(
+              widget.realtimeActionFor?.call(selectedStation),
+            ),
+            onTimetable: _dismissingAfter(
+              widget.timetableActionFor?.call(selectedStation),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 말풍선 칸을 누르면 동작을 부른 뒤 말풍선을 닫는다(출발·경유·도착과 같다).
+  VoidCallback? _dismissingAfter(VoidCallback? action) {
+    if (action == null) {
+      return null;
+    }
+    return () {
+      action();
+      _dismissSelection();
+    };
+  }
+
+  /// 역 말풍선이 열려 있는 역. 지도에서 직접 고른 역이 부모가 지정한 역보다 우선한다.
+  NetworkMapStation? _selectedStationIn(NetworkMapData data) {
+    final lookup = _stationLookup(data.stations);
+    return lookup.byIdentity(_selectedStation) ??
+        lookup.byId(widget.selectedStationId);
+  }
+
+  NetworkMapGeometry _geometryFor(NetworkMapData data) {
+    // basemap 오너 라벨 sidecar(로드는 async)를 geometry bounds에 반영한다(#2068).
+    // 로드 전엔 null → 라벨 rect 없이 계산되지만, 로드가 끝나면 setState로 rebuild
+    // 되며 ownerKey가 바뀌어 캐시가 무효화되고 라벨 extents를 포함해 재계산된다
+    // (stale bounds 방지 — sidecar 로드 전/후 캐시 키 구분).
+    final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
+    final ownerEntries = basemapAssetId == null
+        ? null
+        : _ownerLabelsByRegion?[basemapAssetId];
+    final ownerKey = ownerEntries == null
+        ? 'none'
+        : 'owner:${ownerEntries.length}';
+    final cacheKey =
+        'generated:${data.selectedRegion}:${identityHashCode(data.stations)}:${data.stations.length}:$ownerKey';
+    final cached = _geometryCache;
+    if (_geometryCacheKey == cacheKey && cached != null) {
+      return cached;
+    }
+    final ownerLabelSourceRects = ownerEntries == null || ownerEntries.isEmpty
+        ? const <Rect>[]
+        : networkMapOwnerLabelSourceRects(
+            ownerLabels: ownerEntries.values.expand((entries) => entries),
+          );
+    final geometry = NetworkMapGeometry.fromStations(
+      data.stations,
+      ownerLabelSourceRects: ownerLabelSourceRects,
+      stationSourceBoundsFor:
+          NetworkMapStationHitGeometry.sourceBoundsForStation,
+      stationKeyFor: NetworkMapStationHitGeometry.stationKeyFor,
+    );
+    _geometryCacheKey = cacheKey;
+    _geometryCache = geometry;
+    return geometry;
+  }
+
+  /// 이 지역 오너 라벨 sidecar로 산출한 초기 카메라 가독 배율(#2068 트랙 QA
+  /// 후속). sidecar 미로드·미매핑이면 null → 초기 카메라는 기존 contain-fit.
+  /// build는 팬 프레임마다 호출되므로 [_geometryFor]와 같은 키 규칙으로 캐시해
+  /// 라벨 수백~수천 건 중앙값 계산이 매 프레임 반복되지 않게 한다.
+  double? _readableInitialMapScaleFor(NetworkMapData data) {
+    final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
+    final ownerEntries = basemapAssetId == null
+        ? null
+        : _ownerLabelsByRegion?[basemapAssetId];
+    final cacheKey =
+        '${data.selectedRegion}:${identityHashCode(data.stations)}:'
+        '${data.stations.length}:'
+        '${ownerEntries == null ? 'none' : 'owner:${ownerEntries.length}'}';
+    if (_readableInitialMapScaleCacheKey == cacheKey) {
+      return _readableInitialMapScaleCache;
+    }
+    final scale = ownerEntries == null || ownerEntries.isEmpty
+        ? null
+        : networkMapReadableInitialMapScale(
+            ownerLabelsByStationName: ownerEntries,
+            stationNames: {for (final station in data.stations) station.nameKo},
+          );
+    _readableInitialMapScaleCacheKey = cacheKey;
+    _readableInitialMapScaleCache = scale;
+    return scale;
+  }
+
+  void _updateCameraForGesture(ScaleUpdateDetails details) {
+    final startCamera = _gestureStartCamera;
+    final startFocalPoint = _gestureStartFocalPoint;
+    if (startCamera == null || startFocalPoint == null) {
+      return;
+    }
+    final viewportCenter = startCamera.viewportSize.center(Offset.zero);
+    final sourceBefore = startCamera.viewportToSourcePoint(startFocalPoint);
+    final nextScale = (startCamera.scale * details.scale)
+        .clamp(startCamera.minScale, startCamera.maxScale)
+        .toDouble();
+    final nextCenter =
+        sourceBefore - (details.localFocalPoint - viewportCenter) / nextScale;
+    _setCamera(
+      startCamera
+          .copyWith(
+            center: nextCenter,
+            scale: nextScale,
+            revision: startCamera.revision + 1,
+          )
+          .clamped(viewportMargin: _cameraViewportMargin),
+    );
+  }
+
+  void _endScaleGesture() {
+    if (_pendingCamera == null && _camera != null) {
+      _pendingCamera = _camera;
+    }
+    final pendingCamera = _pendingCamera;
+    if (pendingCamera != null) {
+      widget.onViewportChanged(pendingCamera.visibleSourceRect);
+    }
+    _scheduleCameraCommit();
+    _gestureStartCamera = null;
+    _gestureStartFocalPoint = null;
+    if (!_gestureActive) {
+      return;
+    }
+    if (!mounted) {
+      _gestureActive = false;
+      return;
+    }
+    setState(() {
+      _gestureActive = false;
+    });
+  }
+
+  void _setCamera(MapCameraState camera) {
+    final currentCamera = _pendingCamera ?? _camera;
+    final nextCamera = currentCamera == null
+        ? camera
+        : networkMapCameraWithMonotonicRevision(
+            current: currentCamera,
+            next: camera,
+          );
+    if (identical(_pendingCamera, nextCamera) ||
+        (_pendingCamera == null && identical(_camera, nextCamera))) {
+      return;
+    }
+    _pendingCamera = nextCamera;
+    _scheduleCameraCommit();
+  }
+
+  void _scheduleCameraCommit() {
+    if (_pendingCamera == null) {
+      return;
+    }
+    if (_cameraFrameCallbackScheduled) {
+      return;
+    }
+    _cameraFrameCallbackScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _cameraFrameCallbackScheduled = false;
+      final pendingCamera = _pendingCamera;
+      _pendingCamera = null;
+      if (!mounted || pendingCamera == null) {
+        return;
+      }
+      if (identical(_camera, pendingCamera)) {
+        return;
+      }
+      setState(() {
+        _camera = pendingCamera;
+      });
+    });
+  }
+
+  void _openNearestStation(
+    Offset viewportPosition,
+    NetworkMapStationHitGeometry hitGeometry,
+    MapCameraState camera,
+  ) {
+    final station = hitGeometry.stationAtViewportPosition(
+      viewportPosition,
+      camera: camera,
+    );
+    if (station == null) {
+      return;
+    }
+    _selectStation(station);
+  }
+
+  /// 역 말풍선을 닫는다: 내부 선택과 함께, prop([selectedStationId])으로 열린
+  /// 경우 부모 선택 상태도 비우도록 알린다(그렇지 않으면 prop이 다시 띄운다).
+  void _clearSelectionAndNotify() {
+    _selectedStation = null;
+    widget.onSelectionDismissed();
+  }
+
+  void _dismissSelection() => setState(_clearSelectionAndNotify);
+
+  void _selectStation(NetworkMapStation station) {
+    setState(() => _selectedStation = station);
+    // #2200: 캔버스 역 탭은 역 말풍선과 함께 하단 역 정보 패널도 열도록 부모에
+    // 통지한다(부모가 역을 StationSearchResult로 해석해 패널을 연다).
+    widget.onStationTapped(station);
+    // #2109: 화면 경계에서 역 말풍선이 잘리면 카메라를 최소 거리만 패닝해 전체
+    // 노출한다. 다음 프레임(레이아웃 확정 후) 뷰포트 대비 메뉴 bbox를 계산한다.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _selectedStation?.id != station.id) {
+        return;
+      }
+      _panCameraToRevealStationPopover(station);
+    });
+  }
+
+  void _panCameraToRevealStationPopover(NetworkMapStation station) {
+    final camera = _pendingCamera ?? _camera;
+    if (camera == null) {
+      return;
+    }
+    final data = _alignedData(widget.data);
+    final geometry = _geometryFor(data);
+    final alignedStation =
+        _stationLookup(data.stations).byId(station.id) ?? station;
+    final stationPoint = camera.sourceToViewportPoint(
+      _stationPopoverTailAnchorSource(alignedStation, geometry),
+    );
+    const margin = kStationPopoverViewportMargin;
+    // #2109: 배치 bbox는 build와 동일하게 stationPopoverPlacement가 계산한다
+    // (규칙 중복 제거 — 한쪽만 바뀌어 패닝 bbox와 렌더 위치가 어긋나는 것 방지).
+    // 패닝은 같은 viewport의 클램프 없는 이상적 배치로 최대한 노출을 시도하고,
+    // 패닝이 .clamped() 한계로 다 못 드러내는 잔여는 build 경로의 viewport 클램프
+    // 폴백이 처리한다.
+    final placement = stationPopoverPlacement(
+      stationPoint: stationPoint,
+      viewport: camera.viewportSize,
+      clampPosition: false,
+      topInset: _obscuredTop,
+    );
+    final menuRect = placement.revealBounds;
+    final revealOffset = stationPopoverRevealOffset(
+      menuRect: menuRect,
+      viewport: camera.viewportSize,
+      topInset: _obscuredTop,
+    );
+    if (revealOffset == Offset.zero) {
+      return;
+    }
+    // 뷰포트 픽셀 이동 → source 좌표 center 이동(반대 방향).
+    final nextCenter = camera.center - revealOffset / camera.scale;
+    // #2192: v3는 flip을 제거하고 항상 노드 위에 배치하므로, 지도 최상단(경계)
+    // 역에서도 꼬리 팁이 노드에 닿은 채 메뉴 전체가 드러나려면 카메라가 source
+    // 경계를 메뉴 높이만큼 넘겨 패닝할 수 있어야 한다. clamped 헤드룸을 메뉴
+    // 높이+여백으로 열어 상단 여유를 준다(reveal offset은 필요한 방향으로만 이동하므로
+    // 다른 역 배치에는 영향 없음). 잔여는 build 경로의 viewport 클램프가 처리한다.
+    final headroom = placement.menuHeight + margin + _obscuredTop;
+    _setCamera(
+      camera
+          .copyWith(center: nextCenter, revision: camera.revision + 1)
+          .clamped(viewportMargin: headroom),
+    );
+  }
+
+  /// 이전 위젯 대비 새로 지정된(바뀌어서 비어 있지 않은) 핀의 역 id.
+  List<String> _newlyDesignatedPinStationIds(NetworkMapCanvas oldWidget) => [
+    for (final (current, previous) in [
+      (widget.originStationId, oldWidget.originStationId),
+      (widget.waypointStationId, oldWidget.waypointStationId),
+      (widget.destinationStationId, oldWidget.destinationStationId),
+    ])
+      if (current != null && current != previous) current,
+  ];
+
+  /// 다음 프레임(레이아웃 확정 후)에 [pinStationIds] 핀과, [menu]가 참이면 열린 팬
+  /// 메뉴를 오버레이 아래로 옮긴다. 가려지지 않았으면 카메라를 건드리지 않는다.
+  ///
+  /// 제스처 중에는 옮기지 않고 제스처가 끝난 뒤에도 다시 시도하지 않는다. 제스처 중에
+  /// 바뀐 오버레이 높이는 사용자가 조작한 지도 위치를 우선하고, 가려진 핀은 사용자가
+  /// 직접 끌어 내릴 수 있다.
+  void _scheduleReveal({
+    List<String> pinStationIds = const [],
+    bool menu = false,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _gestureActive) {
+        return;
+      }
+      _panCameraToRevealPins(pinStationIds);
+      final menuStation = menu
+          ? _selectedStationIn(_alignedData(widget.data))
+          : null;
+      if (menuStation != null) {
+        _panCameraToRevealStationPopover(menuStation);
+      }
+    });
+  }
+
+  void _panCameraToRevealPins(List<String> stationIds) {
+    final camera = _pendingCamera ?? _camera;
+    if (camera == null || stationIds.isEmpty) {
+      return;
+    }
+    final data = _alignedData(widget.data);
+    final geometry = _geometryFor(data);
+    final currentPinIds = {
+      widget.originStationId,
+      widget.waypointStationId,
+      widget.destinationStationId,
+    };
+    final lookup = _stationLookup(data.stations);
+    final anchors = [
+      for (final id in stationIds)
+        // 지정 뒤 지워진 핀은 그릴 대상이 아니다.
+        if (currentPinIds.contains(id))
+          if (lookup.byId(id) case final station?)
+            camera.sourceToViewportPoint(
+              _stationPopoverAnchorSource(station, geometry),
+            ),
+    ];
+    final revealDy = networkMapRevealOffsetBelowObscuredTop(
+      anchorPoints: anchors,
+      extentAboveAnchor: NetworkMapDraftPin.extentAboveAnchor,
+      viewportHeight: camera.viewportSize.height,
+      obscuredTop: _obscuredTop,
+    );
+    if (revealDy == 0) {
+      return;
+    }
+    // 화면 내용을 아래로 밀면 source center는 위로 움직인다. 지도 최상단 역도
+    // 오버레이 아래로 내릴 수 있도록 source 경계를 넘는 여유를 연다.
+    _setCamera(
+      camera
+          .copyWith(
+            center: camera.center - Offset(0, revealDy / camera.scale),
+            revision: camera.revision + 1,
+          )
+          .clamped(viewportMargin: _cameraViewportMargin),
+    );
+  }
+
+  // 하이브리드 바탕층(#2068)을 visual camera로 마운트한다. 바탕은 region에 매핑된
+  // 컴파일 .vec를 런타임 디코드해 그리며(RouteMapBasemapView), 인터랙션 좌표계와
+  // 1:1 정렬된다.
+  Widget _buildStructuredRouteMapCanvas(
+    MapCameraState camera,
+    Offset sourceOrigin,
+    NetworkMapData data,
+  ) {
+    final attribution = _attributionTextByRegion?[data.selectedRegion];
+    _ensureStructuredRouteMap(data);
+    final map = _structuredRouteMapCache!;
+    final lineColors = _structuredLineColorsCache!;
+    final labelTextByStationId = _structuredLabelTextCache!;
+    final lineBadgeLabelByLineId = _structuredLineBadgeLabelCache!;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RouteMapBasemapView(
+          region: data.selectedRegion,
+          camera: camera,
+          sourceOrigin: sourceOrigin,
+          attributionText: attribution,
+          highlightedLineId: widget.focusedLine?.lineId,
+        ),
+        StructuredRouteMapView(
+          map: map,
+          camera: camera,
+          lineColors: lineColors,
+          labelTextByStationId: labelTextByStationId,
+          lineBadgeLabelByLineId: lineBadgeLabelByLineId,
+          drawLines: false,
+          drawStationSymbols: false,
+          sourceOrigin: sourceOrigin,
+        ),
+      ],
+    );
+  }
+
+  /// [NetworkMapCanvas.focusedLine] 요청이 새로 오면 그 노선 역이 모두 보이게 카메라를
+  /// 옮긴다. 제스처 중이면 손을 뗀 뒤 다음 build에서 옮긴다.
+  MapCameraState _focusCameraOnLine(
+    MapCameraState camera,
+    NetworkMapData data,
+    NetworkMapGeometry geometry,
+    BoxConstraints constraints, {
+    required Rect initialBounds,
+    required double minScale,
+    required double obscuredTop,
+  }) {
+    final request = widget.focusedLine;
+    if (request == null || _gestureActive || request == _cameraFocusedLine) {
+      return camera;
+    }
+    _cameraFocusedLine = request;
+    final bounds = networkMapLineFocusBounds(
+      stationCenters: [
+        for (final station in data.stations)
+          if (station.lineId == request.lineId)
+            Offset(geometry.x(station), geometry.y(station)),
+      ],
+      initialBounds: initialBounds,
+      sourceWidth: geometry.width,
+      sourceHeight: geometry.height,
+    );
+    if (bounds == null) {
+      return camera;
+    }
+    final focused = networkMapCameraForBounds(
+      bounds,
+      constraints,
+      sourceBounds: Offset.zero & Size(geometry.width, geometry.height),
+      contain: true,
+      minScale: minScale,
+      revision: camera.revision + 1,
+      initialScaleOverride: camera.initialScale,
+      obscuredTop: obscuredTop,
+    );
+    _pendingCamera = null;
+    _camera = focused;
+    widget.onViewportChanged(focused.visibleSourceRect);
+    return focused;
+  }
+
+  void _ensureStructuredRouteMap([NetworkMapData? dataOverride]) {
+    final data = dataOverride ?? _alignedData(widget.data);
+    // geometry 캐시와 동일하게 identityHashCode를 포함해, 같은 region·같은 개수라도
+    // data 인스턴스가 바뀌면(좌표 수정/노선 교체) 재계산되게 한다(overlay와 정합).
+    final key =
+        '${data.selectedRegion}:${identityHashCode(data.stations)}:${data.stations.length}:${data.lines.length}';
+    if (_structuredCacheKey == key && _structuredRouteMapCache != null) {
+      return;
+    }
+    _structuredCacheKey = key;
+    final structured = data.toStructuredRouteMap();
+    _structuredRouteMapCache = structured;
+    _structuredDesignScaleCache = routeMapDesignSpaceFor(
+      structured,
+    ).designScale;
+    _structuredTransferGroupCache = {
+      for (final group in structured.transferGroups) group.stationId: group,
+    };
+    _structuredLineColorsCache = routeMapLineColors({
+      for (final line in data.lines) line.id: line.color,
+    });
+    _structuredLabelTextCache = {
+      for (final station in data.stations)
+        station.id: routeMapStationLabel(station.nameKo),
+    };
+    _structuredLineBadgeLabelCache = {
+      for (final line in data.lines) line.id: routeMapLineBadgeLabel(line.name),
+    };
+  }
+
+  /// 역 말풍선 꼬리 팁이 닿을 앵커의 source 좌표(#2068 QA). 노드 바닥에서
+  /// 노드 높이의 2/3만큼 위, 즉 ([_stationPopoverAnchorSource])에서 높이의 1/6만큼
+  /// 위로 올라간 지점이다.
+  /// build(렌더)와 [_panCameraToRevealStationPopover](카메라)가 같은 앵커를 소비하도록
+  /// 단일 헬퍼로 둔다. **역 말풍선 전용** — 드래프트 핀은 이동 없이
+  /// [_stationPopoverAnchorSource](정중앙)를 그대로 쓴다.
+  Offset _stationPopoverTailAnchorSource(
+    NetworkMapStation station,
+    NetworkMapGeometry geometry,
+  ) {
+    final center = _stationPopoverAnchorSource(station, geometry);
+    final group = _structuredTransferGroupCache?[station.id];
+    return stationPopoverTailAnchorPoint(
+      nodeCenter: center,
+      nodeHeight: stationPopoverAnchorNodeHeight(
+        memberPositions: group?.memberPositions ?? const <Offset>[],
+        designScale: _structuredDesignScaleCache ?? 1.0,
+      ),
+    );
+  }
+
+  /// 노드 **정중앙**의 source 좌표(#2192). 환승역은 렌더 캡슐의 시각 중심으로,
+  /// 일반역은 노드 좌표 그대로 유도한 뒤 [NetworkMapGeometry] 원점을 빼
+  /// [MapCameraState.sourceToViewportPoint] 입력 좌표계로 맞춘다.
+  /// 드래프트 핀(출발·경유·도착)이 이 좌표를 그대로 앵커로 쓴다. 역 말풍선은
+  /// 여기서 한 번 더 올린 [_stationPopoverTailAnchorSource]를 쓴다(#2068 QA).
+  Offset _stationPopoverAnchorSource(
+    NetworkMapStation station,
+    NetworkMapGeometry geometry,
+  ) {
+    _ensureStructuredRouteMap();
+    final data = _alignedData(widget.data);
+    final alignedStation =
+        _stationLookup(data.stations).byId(station.id) ?? station;
+    final tapped = Offset(
+      alignedStation.position.x.toDouble(),
+      alignedStation.position.y.toDouble(),
+    );
+    final group = _structuredTransferGroupCache?[alignedStation.id];
+    final center = group == null
+        ? tapped
+        : stationPopoverTransferAnchor(
+            memberPositions: group.memberPositions,
+            tappedPosition: tapped,
+            designScale: _structuredDesignScaleCache ?? 1.0,
+          );
+    return Offset(
+      center.dx - geometry.origin.dx,
+      center.dy - geometry.origin.dy,
+    );
+  }
+}

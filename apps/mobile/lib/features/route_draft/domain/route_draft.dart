@@ -1,0 +1,96 @@
+import 'package:flutter/foundation.dart';
+
+/// 길찾기 draft에서 채우려는 칸(출발/도착). 지도 탭·텍스트 검색 어느 경로든
+/// 같은 칸을 지정해 동일한 [RouteDraft] 상태로 수렴시키기 위해 쓴다.
+enum RouteDraftSlot { origin, destination, waypoint }
+
+/// 다른 feature가 route draft를 읽고 갱신할 때 사용하는 typed domain 경계.
+abstract interface class RouteDraftPort implements Listenable {
+  RouteDraft get draft;
+
+  void clear();
+
+  void setOrigin(RouteDraftStation station);
+
+  void setDestination(RouteDraftStation station);
+
+  void setWaypoint(RouteDraftStation station);
+}
+
+class RouteDraftStation {
+  const RouteDraftStation({
+    required this.id,
+    required this.nameKo,
+    this.lineId = '',
+    this.lineName = '',
+    this.lineColor = '',
+    this.stationCode = '',
+  });
+
+  final String id;
+  final String nameKo;
+  final String lineId;
+  final String lineName;
+  final String lineColor;
+  final String stationCode;
+
+  String get displayName => stationNameWithSuffix(nameKo);
+
+  bool get hasLine => lineId.trim().isNotEmpty;
+}
+
+class RouteDraft {
+  const RouteDraft({
+    required this.origin,
+    required this.destination,
+    required this.lastModifiedAt,
+    this.waypoint,
+    this.invalidatedReason,
+  });
+
+  const RouteDraft.empty()
+    : origin = null,
+      destination = null,
+      waypoint = null,
+      lastModifiedAt = null,
+      invalidatedReason = null;
+
+  final RouteDraftStation? origin;
+  final RouteDraftStation? destination;
+  final RouteDraftStation? waypoint;
+  final DateTime? lastModifiedAt;
+  final String? invalidatedReason;
+
+  bool get isEmpty => origin == null && destination == null && waypoint == null;
+
+  String get originLabel {
+    final station = origin;
+    return station == null ? '출발 미정' : '출발 ${station.displayName}';
+  }
+
+  String get destinationLabel {
+    final station = destination;
+    return station == null ? '도착 미정' : '도착 ${station.displayName}';
+  }
+
+  String get waypointLabel {
+    final station = waypoint;
+    return station == null ? '경유 미정' : '경유 ${station.displayName}';
+  }
+}
+
+/// #1991: 슬롯 표시 라벨('출발역'/'경유역'/'도착역') 단일 출처.
+/// exhaustive switch라 슬롯 추가 시 컴파일 에러로 누락을 잡는다.
+extension RouteDraftSlotLabel on RouteDraftSlot {
+  String get displayLabel => switch (this) {
+    RouteDraftSlot.origin => '출발역',
+    RouteDraftSlot.waypoint => '경유역',
+    RouteDraftSlot.destination => '도착역',
+  };
+}
+
+/// 화면에 쓰는 역 이름. 이름 끝에 `역`이 없으면 붙인다(`창동` → `창동역`).
+String stationNameWithSuffix(String name) {
+  final trimmed = name.trim();
+  return trimmed.endsWith('역') ? trimmed : '$trimmed역';
+}

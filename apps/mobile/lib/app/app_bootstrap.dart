@@ -1,0 +1,363 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+
+import '../features/favorites/favorite_facility.dart';
+import '../features/favorites/domain/favorite_route.dart';
+import '../mobile_error_reporter.dart';
+import '../features/notifications/notification_settings.dart';
+import '../features/stations/domain/station_repositories.dart';
+import '../core/datapack/data_pack_client.dart';
+import '../core/datapack/bundled_data_pack_freshness.dart';
+import '../core/datapack/data_pack_installer.dart';
+import '../core/datapack/data_pack_update_state.dart';
+import '../core/datapack/data_pack_updater.dart';
+import '../core/datapack/emergency_override_repository.dart';
+import '../core/datapack/network_condition_source.dart';
+import '../features/facility_report/domain/facility_report_repository.dart';
+import '../features/account/user_data_deletion.dart';
+import '../core/database/catalog/catalog_database.dart';
+import '../core/database/catalog/catalog_database_opener.dart';
+import '../core/database/user/user_database.dart';
+import '../core/database/user/user_database_opener.dart';
+import 'app_endpoints.dart';
+import 'app_dependencies.dart';
+
+typedef DataPackUpdateRunner =
+    Future<void> Function({
+      required Directory supportDirectory,
+      required UserDatabase userDatabase,
+      required UpdateTrigger trigger,
+    });
+
+class AppBootstrap {
+  const AppBootstrap({
+    required this.dependencies,
+    required this.catalogDatabase,
+    required this.userDatabase,
+    required this.dataPackUpdate,
+    required this.resumeDataPackUpdate,
+    required this.acceptMeteredDataPackUpdate,
+    required this.bundledDataPackFreshness,
+    this.isUsingBundledDataPack = false,
+    this.closeDataPackUpdater,
+  });
+
+  final AppDependencies dependencies;
+  final CatalogDatabase catalogDatabase;
+  final UserDatabase userDatabase;
+  final Future<void> dataPackUpdate;
+  final Future<void> Function() resumeDataPackUpdate;
+  final Future<void> Function() acceptMeteredDataPackUpdate;
+  final BundledDataPackFreshness? bundledDataPackFreshness;
+  final bool isUsingBundledDataPack;
+  final Future<void> Function()? closeDataPackUpdater;
+
+  static Future<AppBootstrap> initialize({
+    Directory? databaseDirectory,
+    AssetBundle? assetBundle,
+    StationSearchRepository? repository,
+    FacilityReportRepository? reportRepository,
+    FavoriteStationRepository? favoriteRepository,
+    FavoriteFacilityRepository? favoriteFacilityRepository,
+    FavoriteRouteRepository? favoriteRouteRepository,
+    SearchHistoryRepository? searchHistoryRepository,
+    NotificationSettingsRepository? notificationRepository,
+    NotificationPermissionProvider? notificationPermissionProvider,
+    CurrentLocationProvider? locationProvider,
+    UserDataDeletionRepository? userDataDeletionRepository,
+    DataPackUpdateRunner? dataPackUpdateRunner,
+    AppEndpoints? endpoints,
+    required bool enablePushNotifications,
+  }) async {
+    final supportDirectory =
+        databaseDirectory ?? await getApplicationSupportDirectory();
+    final userDatabaseDirectory = Directory(
+      p.join(supportDirectory.path, 'user'),
+    );
+    final userDatabase = await UserDatabaseOpener(
+      databaseDirectory: userDatabaseDirectory,
+    ).open();
+    final emergencyOverrideRepository = EmergencyOverrideRepository(
+      userDatabase: userDatabase,
+    );
+
+    Future<void>? dataPackUpdate;
+    DataPackUpdater? ownedUpdater;
+    try {
+      final catalogDatabaseOpener = CatalogDatabaseOpener(
+        databaseDirectory: supportDirectory,
+        assetBundle: assetBundle ?? rootBundle,
+        emergencyOverrideRepository: emergencyOverrideRepository,
+      );
+      final catalogDatabase = await catalogDatabaseOpener.open();
+      final bundledDataPackFreshness =
+          catalogDatabaseOpener.openedBundledDataPack
+          ? await BundledDataPackFreshness.read(supportDirectory)
+          : await _installedDataPackFreshness(userDatabase);
+      final dependencies = AppDependencies.resolve(
+        repository: repository,
+        reportRepository: reportRepository,
+        favoriteRepository: favoriteRepository,
+        favoriteFacilityRepository: favoriteFacilityRepository,
+        favoriteRouteRepository: favoriteRouteRepository,
+        searchHistoryRepository: searchHistoryRepository,
+        notificationRepository: notificationRepository,
+        notificationPermissionProvider: notificationPermissionProvider,
+        locationProvider: locationProvider,
+        userDataDeletionRepository: userDataDeletionRepository,
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        userDatabaseDirectory: userDatabaseDirectory,
+        enablePushNotifications: enablePushNotifications,
+      );
+      final runner =
+          dataPackUpdateRunner ??
+          (({
+            required Directory supportDirectory,
+            required UserDatabase userDatabase,
+            required UpdateTrigger trigger,
+          }) async {
+            final updater = ownedUpdater ??= _createDefaultDataPackUpdater(
+              supportDirectory: supportDirectory,
+              userDatabase: userDatabase,
+              endpoints: endpoints,
+            );
+            if (updater == null) {
+              return;
+            }
+            await updater.checkForUpdates(trigger: trigger);
+          });
+
+      final pendingDataPackUpdates = <Future<void>>{};
+      Future<void> trackDataPackUpdate(UpdateTrigger trigger) {
+        late final Future<void> tracked;
+        tracked = _runDataPackUpdateSafely(
+          supportDirectory: supportDirectory,
+          userDatabase: userDatabase,
+          runner: runner,
+          trigger: trigger,
+        ).whenComplete(() => pendingDataPackUpdates.remove(tracked));
+        pendingDataPackUpdates.add(tracked);
+        return tracked;
+      }
+
+      // 설치 pointer는 갱신하되, 세션의 catalog 의존성은 다음 bootstrap까지
+      // 함께 열린 동일 DB를 유지해 기능별로 서로 다른 데이터팩을 노출하지 않는다.
+      dataPackUpdate = trackDataPackUpdate(UpdateTrigger.appStart);
+
+      return AppBootstrap(
+        dependencies: dependencies,
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        dataPackUpdate: dataPackUpdate,
+        resumeDataPackUpdate: () =>
+            trackDataPackUpdate(UpdateTrigger.foregroundResume),
+        acceptMeteredDataPackUpdate: () =>
+            trackDataPackUpdate(UpdateTrigger.userConsent),
+        bundledDataPackFreshness: bundledDataPackFreshness,
+        isUsingBundledDataPack: catalogDatabaseOpener.openedBundledDataPack,
+        closeDataPackUpdater: () async {
+          while (pendingDataPackUpdates.isNotEmpty) {
+            await Future.wait(pendingDataPackUpdates.toList(growable: false));
+          }
+          ownedUpdater?.close();
+        },
+      );
+    } catch (error, stackTrace) {
+      await dataPackUpdate;
+      await userDatabase.close();
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+  }
+
+  Future<void> close() async {
+    Object? firstError;
+    StackTrace? firstStackTrace;
+
+    Future<void> closeResource(Future<void> Function() close) async {
+      try {
+        await close();
+      } catch (error, stackTrace) {
+        firstError ??= error;
+        firstStackTrace ??= stackTrace;
+      }
+    }
+
+    await closeResource(() => dataPackUpdate);
+    final closeUpdater = closeDataPackUpdater;
+    if (closeUpdater != null) {
+      await closeResource(closeUpdater);
+    }
+    await closeResource(() async => dependencies.close());
+    await closeResource(catalogDatabase.close);
+    await closeResource(userDatabase.close);
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError!, firstStackTrace!);
+    }
+  }
+}
+
+/// 데이터팩 수락 상태 저장소는 이 한 곳에서만 만든다 (이슈 #2531).
+///
+/// 수락 순번 하한은 생성자 optional 인자라, 생성 지점이 흩어지면 어느 한 곳이 조용히
+/// 하한 없이 만들어져도 컴파일도 테스트도 그대로 통과한다. 조립을 여기로 모아
+/// `AppEndpoints`가 판정한 하한을 항상 주입하고, 이 배선은
+/// `data_pack_manifest_acceptance_policy_test.dart`가 실행으로 확인한다.
+DataPackUpdateStateRepository createDataPackUpdateStateRepository({
+  required UserDatabase userDatabase,
+  required AppEndpoints endpoints,
+}) {
+  return DataPackUpdateStateRepository(
+    userDatabase: userDatabase,
+    minimumReleaseSequence: endpoints.dataPackMinimumReleaseSequence,
+  );
+}
+
+Future<BundledDataPackFreshness?> _installedDataPackFreshness(
+  UserDatabase userDatabase,
+) async {
+  final cache = await createDataPackUpdateStateRepository(
+    userDatabase: userDatabase,
+    endpoints: AppEndpoints.fromEnvironment(),
+  ).readManifestCache();
+  final expiresAt = cache?.expiresAt;
+  if (expiresAt == null) {
+    return null;
+  }
+  return BundledDataPackFreshness.fromExpiry(
+    freshnessExpiresAt: expiresAt,
+    staleReasonCode: 'PACK_PUBLISH_FRESHNESS_EXPIRED',
+  );
+}
+
+Future<void> _runDataPackUpdateSafely({
+  required Directory supportDirectory,
+  required UserDatabase userDatabase,
+  required DataPackUpdateRunner runner,
+  required UpdateTrigger trigger,
+}) async {
+  try {
+    await runner(
+      supportDirectory: supportDirectory,
+      userDatabase: userDatabase,
+      trigger: trigger,
+    );
+  } catch (error, stackTrace) {
+    reportMobileError(
+      error,
+      stackTrace,
+      context: '이동 정보 업데이트 확인 중 예외가 발생했습니다.',
+    );
+  }
+}
+
+/// 공개키 미주입·형식 오류 신호는 세션당 한 번만 올린다. 업데이트 확인은 앱 시작과
+/// foreground 복귀마다 도는데, 원인이 빌드 구성이라 반복 보고는 같은 사실만 늘린다.
+bool _reportedBlockedDataPackUpdate = false;
+
+DataPackUpdater? _createDefaultDataPackUpdater({
+  required Directory supportDirectory,
+  required UserDatabase userDatabase,
+  AppEndpoints? endpoints,
+}) {
+  final resolvedEndpoints = endpoints ?? AppEndpoints.fromEnvironment();
+  // production 빌드에 서명 공개키가 없으면 봉투 서명이 자기해시 대조로 강등돼 발신자
+  // 인증이 사라진다(#2532). base URL만 보고 진행하지 않고 여기서 닫는다.
+  final decision = resolvedEndpoints.dataPackUpdateStartDecision;
+  if (decision != DataPackUpdateStartDecision.start) {
+    final message = decision.blockedDiagnosticMessage;
+    if (message != null && !_reportedBlockedDataPackUpdate) {
+      _reportedBlockedDataPackUpdate = true;
+      reportMobileError(
+        StateError(message),
+        StackTrace.current,
+        context: '이동 정보 업데이트를 시작하지 않았습니다.',
+      );
+    }
+    return null;
+  }
+  final manifestUri = resolvedEndpoints.dataPackManifestUri;
+  if (manifestUri == null) {
+    return null;
+  }
+  final stateRepository = createDataPackUpdateStateRepository(
+    userDatabase: userDatabase,
+    endpoints: resolvedEndpoints,
+  );
+  final catalogDirectory = Directory(p.join(supportDirectory.path, 'catalog'));
+  return DataPackUpdater(
+    client: DataPackClient(
+      manifestUri: manifestUri,
+      stateRepository: stateRepository,
+      productionSigningPublicKeys:
+          resolvedEndpoints.productionDataPackSigningPublicKeys,
+      expectedManifestChannel: resolvedEndpoints.expectedDataPackChannel,
+    ),
+    installer: DataPackInstaller(
+      catalogDirectory: catalogDirectory,
+      userDatabase: userDatabase,
+    ),
+    emergencyOverrideRepository: EmergencyOverrideRepository(
+      userDatabase: userDatabase,
+    ),
+    networkConditionSource: ConnectivityNetworkConditionSource(),
+  );
+}
+
+class AppBootstrapLifecycle extends StatefulWidget {
+  const AppBootstrapLifecycle({
+    required this.close,
+    required this.child,
+    this.resumeDataPackUpdate,
+    this.resumeGetOffAlarmState,
+    super.key,
+  });
+
+  final Future<void> Function() close;
+  final Future<void> Function()? resumeDataPackUpdate;
+  final Future<void> Function()? resumeGetOffAlarmState;
+  final Widget child;
+
+  @override
+  State<AppBootstrapLifecycle> createState() => _AppBootstrapLifecycleState();
+}
+
+class _AppBootstrapLifecycleState extends State<AppBootstrapLifecycle>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final resumeDataPackUpdate = widget.resumeDataPackUpdate;
+      if (resumeDataPackUpdate != null) {
+        unawaited(resumeDataPackUpdate());
+      }
+      final resumeGetOffAlarmState = widget.resumeGetOffAlarmState;
+      if (resumeGetOffAlarmState != null) {
+        unawaited(resumeGetOffAlarmState());
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(widget.close());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return widget.child;
+  }
+}

@@ -1,0 +1,2205 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:easysubway_mobile/auth_headers.dart';
+import 'package:easysubway_mobile/core/database/user/user_database.dart'
+    as user_db;
+import 'package:easysubway_mobile/core/network/api_client.dart';
+import 'package:easysubway_mobile/features/facility_report/application/facility_report_controller.dart';
+import 'package:easysubway_mobile/features/facility_report/application/facility_report_state.dart';
+import 'package:easysubway_mobile/features/facility_report/data/drift_facility_report_receipt_store.dart';
+import 'package:easysubway_mobile/features/facility_report/data/facility_report_api_repository.dart';
+import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
+import 'package:easysubway_mobile/features/facility_report/data/secure_facility_report_draft_target_store.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_receipt.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart'
+    as repository_owner;
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_type.dart';
+import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_result_labels.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
+
+import 'fake_secure_key_value_storage.dart';
+
+void main() {
+  test('시설 신고 repository owner는 API 주소 부재를 operation별 쉬운 실패로 닫는다', () async {
+    const repository = repository_owner.UnavailableFacilityReportRepository();
+    const request = FacilityReportRequest(
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-elevator-sangnoksu-1',
+      reportType: 'BROKEN',
+      description: '승강기 고장',
+    );
+
+    await expectLater(
+      repository.createReport(request),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          '제보를 보내지 못했어요.',
+        ),
+      ),
+    );
+    await expectLater(
+      repository.getReport('report-1'),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          '제보 진행 상황을 확인하지 못했어요.',
+        ),
+      ),
+    );
+    await expectLater(
+      repository.listMyReports(),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          '제보 내역을 불러오지 못했어요.',
+        ),
+      ),
+    );
+  });
+
+  test('시설 신고 사진 선택기는 복구된 사진을 첨부 데이터로 바꾼다', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'facility-report-photo-',
+    );
+    addTearDown(() => tempDir.delete(recursive: true));
+    final photoFile = File('${tempDir.path}/restored-photo.png');
+    await photoFile.writeAsBytes([1, 2, 3, 4]);
+
+    final picker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(
+          file: XFile(photoFile.path, name: 'restored-photo.png'),
+          type: RetrieveType.image,
+        ),
+      ),
+    );
+
+    final attachment = await picker.retrieveLostPhoto();
+
+    expect(attachment, isNotNull);
+    expect(attachment!.fileName, 'restored-photo.png');
+    expect(attachment.contentType, 'image/png');
+    expect(attachment.dataBase64, 'AQIDBA==');
+  });
+
+  test('시설 신고 임시 대상 저장소는 secure storage 복원 실패 시 저장값을 지운다', () async {
+    final storage = FakeSecureKeyValueStorage(
+      readError: StateError('restored Android KeyStore value is invalid'),
+    );
+    final store = SecureFacilityReportDraftTargetStore(storage: storage);
+
+    final target = await store.readTarget();
+
+    expect(target, isNull);
+    expect(storage.deletedKeys, hasLength(1));
+  });
+
+  test('시설 신고 임시 대상 저장소는 secure storage 삭제 실패에도 null로 복구한다', () async {
+    final storage = FakeSecureKeyValueStorage(
+      readError: StateError('restored Android KeyStore value is invalid'),
+      deleteError: StateError('secure storage delete failed'),
+    );
+    final store = SecureFacilityReportDraftTargetStore(storage: storage);
+
+    final target = await store.readTarget();
+
+    expect(target, isNull);
+    expect(storage.deletedKeys, isEmpty);
+  });
+
+  test('시설 신고 임시 대상 저장소는 exact key와 target JSON을 보존한다', () async {
+    final storage = FakeSecureKeyValueStorage();
+    final store = SecureFacilityReportDraftTargetStore(storage: storage);
+    final target = _reportTarget();
+
+    await store.saveTarget(target);
+    final restored = await store.readTarget();
+    await store.clearTarget();
+
+    const storageKey = 'easysubway.facilityReport.draftTarget';
+    expect(storage.values, isEmpty);
+    expect(storage.deletedKeys, [storageKey]);
+    expect(restored?.stationId, target.stationId);
+    expect(restored?.stationName, target.stationName);
+    expect(restored?.facilityId, target.facilityId);
+    expect(restored?.facilityName, target.facilityName);
+    expect(restored?.facilityTypeLabel, target.facilityTypeLabel);
+    expect(restored?.facilityStatusLabel, target.facilityStatusLabel);
+
+    final incompleteTargetJson = target.toJson()..remove('facilityStatusLabel');
+    expect(
+      () => FacilityReportTarget.fromJson(incompleteTargetJson),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          'Missing required report field: facilityStatusLabel',
+        ),
+      ),
+    );
+  });
+
+  test('시설 신고 사진 선택기는 복구할 사진이 없으면 첨부하지 않는다', () async {
+    final picker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(LostDataResponse.empty()),
+    );
+
+    final attachment = await picker.retrieveLostPhoto();
+
+    expect(attachment, isNull);
+  });
+
+  test('시설 신고 사진 선택기는 복구 오류를 쉬운 안내로 바꾼다', () async {
+    final picker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(
+          exception: PlatformException(code: 'lost_data_error'),
+          type: RetrieveType.image,
+        ),
+      ),
+    );
+
+    await expectLater(
+      picker.retrieveLostPhoto(),
+      throwsA(
+        isA<FacilityReportPhotoException>().having(
+          (error) => error.message,
+          'message',
+          '사진을 다시 선택해 주세요.',
+        ),
+      ),
+    );
+  });
+
+  test('시설 신고 사진 선택기는 900 KiB 초과 사진을 거부한다', () async {
+    final picker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(
+          file: XFile.fromData(
+            Uint8List(900 * 1024 + 1),
+            name: 'too-large.jpg',
+          ),
+          type: RetrieveType.image,
+        ),
+      ),
+    );
+
+    await expectLater(
+      picker.retrieveLostPhoto(),
+      throwsA(
+        isA<FacilityReportPhotoException>().having(
+          (error) => error.message,
+          'message',
+          '사진이 너무 큽니다. 다른 사진을 선택해 주세요.',
+        ),
+      ),
+    );
+
+    final oversizedUntouchedFile = _TrackingPhotoXFile(
+      reportedLength: 900 * 1024 + 1,
+      bytes: Uint8List(4),
+    );
+    final preflightPicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(
+          file: oversizedUntouchedFile,
+          type: RetrieveType.image,
+        ),
+      ),
+    );
+    await expectLater(
+      preflightPicker.retrieveLostPhoto(),
+      throwsA(isA<FacilityReportPhotoException>()),
+    );
+    expect(oversizedUntouchedFile.readAsBytesCalled, isFalse);
+
+    final emptyUntouchedFile = _TrackingPhotoXFile(
+      reportedLength: 0,
+      bytes: Uint8List(0),
+    );
+    final emptyPicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(file: emptyUntouchedFile, type: RetrieveType.image),
+      ),
+    );
+    await expectLater(
+      emptyPicker.retrieveLostPhoto(),
+      throwsA(isA<FacilityReportPhotoException>()),
+    );
+    expect(emptyUntouchedFile.readAsBytesCalled, isFalse);
+
+    final deceptiveLengthFile = _TrackingPhotoXFile(
+      reportedLength: 16,
+      bytes: Uint8List(900 * 1024 + 1),
+    );
+    final deceptivePicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(file: deceptiveLengthFile, type: RetrieveType.image),
+      ),
+    );
+    await expectLater(
+      deceptivePicker.retrieveLostPhoto(),
+      throwsA(isA<FacilityReportPhotoException>()),
+    );
+    expect(deceptiveLengthFile.readAsBytesCalled, isTrue);
+  });
+
+  test('시설 신고 사진 오류는 쉬운 안내 문자열을 그대로 노출한다', () {
+    const error = FacilityReportPhotoException('사진을 다시 선택해 주세요.');
+
+    expect(error.toString(), '사진을 다시 선택해 주세요.');
+  });
+
+  test('시설 신고 위치 도메인 계약은 좌표와 쉬운 오류 문자열을 보존한다', () {
+    const location = FacilityReportLocation(
+      latitude: 37.302421,
+      longitude: 126.866221,
+    );
+    const error = FacilityReportLocationException('위치 권한을 확인해 주세요.');
+
+    expect(location.latitude, 37.302421);
+    expect(location.longitude, 126.866221);
+    expect(error.toString(), '위치 권한을 확인해 주세요.');
+  });
+
+  test('시설 신고 receipt 저장소는 token secrecy와 최신순 복원을 보존한다', () async {
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(userDatabase.close);
+    final storage = FakeSecureKeyValueStorage();
+    final store = DriftFacilityReportReceiptStore(
+      userDatabase: userDatabase,
+      storage: storage,
+    );
+    final older = FacilityReportReceipt(
+      receiptId: 'receipt-1',
+      reportId: 'report-1',
+      publicReceiptCode: 'ES-1001',
+      status: 'ACCEPTED',
+      receiptToken: 'secret-token-1',
+      createdAt: DateTime.utc(2026, 8, 11, 10),
+    );
+    final newer = FacilityReportReceipt(
+      receiptId: 'receipt-2',
+      reportId: 'report-2',
+      publicReceiptCode: 'ES-1002',
+      status: 'IN_PROGRESS',
+      receiptToken: 'secret-token-2',
+      createdAt: DateTime.utc(2026, 8, 11, 11),
+    );
+
+    await store.saveReceipt(older);
+    await store.saveReceipt(newer);
+
+    expect(await store.receiptTokenForReport(' report-1 '), 'secret-token-1');
+    storage.values['easysubway.facilityReport.receipt.report-1'] =
+        'direct-token-1';
+    expect(await store.receiptTokenForReport('report-1'), 'direct-token-1');
+    expect(storage.values.keys, {
+      'easysubway.facilityReport.receipt.receipt-1',
+      'easysubway.facilityReport.receipt.receipt-2',
+      'easysubway.facilityReport.receipt.report-1',
+    });
+    expect((await store.listReceipts()).map((receipt) => receipt.reportId), [
+      'report-2',
+      'report-1',
+    ]);
+    storage.values['easysubway.facilityReport.receipt.receipt-2'] = '';
+    expect((await store.listReceipts()).map((receipt) => receipt.reportId), [
+      'report-1',
+    ]);
+    storage.values['easysubway.facilityReport.receipt.report-1'] =
+        'direct-report-token';
+    await store.deleteAllReceiptTokens();
+    expect(
+      storage.values.keys.where(
+        (key) => key.startsWith('easysubway.facilityReport.receipt.'),
+      ),
+      isEmpty,
+    );
+  });
+
+  test('시설 신고 API 저장소는 백엔드 계약에 맞춰 신고를 전송한다', () async {
+    late String? authorizationHeader;
+    late String? uploadIntentAcceptHeader;
+    late String? uploadChecksumHeader;
+    late String? uploadSizeHeader;
+    late String? uploadContentTypeHeader;
+    late int uploadContentLength;
+    late Map<String, Object?> uploadIntentBody;
+    late List<int> uploadedPhotoBytes;
+    late Map<String, Object?> requestBody;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      switch ((request.method, request.uri.path)) {
+        case ('POST', '/api/v1/report-uploads'):
+          uploadIntentAcceptHeader = request.headers.value(
+            HttpHeaders.acceptHeader,
+          );
+          uploadIntentBody =
+              jsonDecode(await utf8.decodeStream(request))
+                  as Map<String, Object?>;
+          request.response
+            ..statusCode = HttpStatus.created
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'success': true,
+                'data': {
+                  'objectKey':
+                      'facility-reports/uploads/client-submission-1-photo.jpg',
+                  'uploadUrl':
+                      '/api/v1/report-uploads/client-submission-1-photo.jpg',
+                  'uploadMethod': 'PUT',
+                  'uploadHeaders': {
+                    'content-type': 'image/jpeg',
+                    'x-easysubway-upload-sha256':
+                        '2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c',
+                    'x-easysubway-upload-size': '11',
+                  },
+                },
+              }),
+            );
+          await request.response.close();
+        case ('PUT', '/api/v1/report-uploads/client-submission-1-photo.jpg'):
+          uploadChecksumHeader = request.headers.value(
+            'x-easysubway-upload-sha256',
+          );
+          uploadSizeHeader = request.headers.value('x-easysubway-upload-size');
+          uploadContentTypeHeader = request.headers.contentType?.mimeType;
+          uploadContentLength = request.contentLength;
+          uploadedPhotoBytes = await request.fold<List<int>>(
+            <int>[],
+            (bytes, chunk) => bytes..addAll(chunk),
+          );
+          request.response.statusCode = HttpStatus.noContent;
+          await request.response.close();
+        case ('POST', '/api/v1/reports'):
+          authorizationHeader = request.headers.value(
+            HttpHeaders.authorizationHeader,
+          );
+          requestBody =
+              jsonDecode(await utf8.decodeStream(request))
+                  as Map<String, Object?>;
+          request.response
+            ..statusCode = HttpStatus.created
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'success': true,
+                'data': {
+                  'id': 'report-1',
+                  'stationId': 'station-sangnoksu',
+                  'facilityId': 'facility-sangnoksu-elevator-1',
+                  'reportType': 'BROKEN',
+                  'description': '문이 열리지 않습니다.',
+                  'status': 'SUBMITTED',
+                  'createdAt': '2026-06-13T10:00:00',
+                  'publicReceiptCode': 'ES-1001',
+                  'receiptToken': 'receipt-token-1',
+                },
+              }),
+            );
+          await request.response.close();
+        default:
+          await utf8.decodeStream(request);
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+      }
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: const BasicAuthorizationHeaderProvider(
+        username: 'anonymous-user-1',
+        password: 'user-test-password',
+      ),
+    );
+
+    final result = await repository.createReport(
+      const FacilityReportRequest(
+        userId: 'anonymous-mobile-user',
+        clientSubmissionId: 'client-submission-1',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: ' 문이 열리지 않습니다. ',
+        photoFileName: 'elevator-door.jpg',
+        photoContentType: 'image/jpeg',
+        photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+        latitude: 37.302421,
+        longitude: 126.866221,
+      ),
+    );
+
+    expect(uploadIntentAcceptHeader, ContentType.json.mimeType);
+    expect(uploadIntentBody['clientSubmissionId'], 'client-submission-1');
+    expect(uploadIntentBody['photoFileName'], 'elevator-door.jpg');
+    expect(uploadIntentBody['photoContentType'], 'image/jpeg');
+    expect(uploadIntentBody['photoSizeBytes'], 11);
+    expect(uploadedPhotoBytes, utf8.encode('image-bytes'));
+    expect(
+      uploadChecksumHeader,
+      '2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c',
+    );
+    expect(uploadSizeHeader, '11');
+    expect(uploadContentTypeHeader, 'image/jpeg');
+    expect(uploadContentLength, 11);
+    expect(requestBody['stationId'], 'station-sangnoksu');
+    expect(requestBody['facilityId'], 'facility-sangnoksu-elevator-1');
+    expect(requestBody['reportType'], 'BROKEN');
+    expect(requestBody['description'], '문이 열리지 않습니다.');
+    expect(requestBody['clientSubmissionId'], 'client-submission-1');
+    expect(requestBody['photoFileName'], 'elevator-door.jpg');
+    expect(requestBody['photoContentType'], 'image/jpeg');
+    expect(
+      requestBody['photoObjectKey'],
+      'facility-reports/uploads/client-submission-1-photo.jpg',
+    );
+    expect(
+      requestBody['photoSha256'],
+      '2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c',
+    );
+    expect(requestBody['photoSizeBytes'], 11);
+    expect(requestBody, isNot(contains('photoDataBase64')));
+    expect(requestBody, isNot(contains('photoUrl')));
+    expect(requestBody['latitude'], 37.302421);
+    expect(requestBody['longitude'], 126.866221);
+    expect(authorizationHeader, isNotNull);
+    expect(result.id, 'report-1');
+    expect(result.publicReceiptCode, 'ES-1001');
+    expect(result.displayReceiptCode, 'ES-1001');
+    expect(result.receiptToken, 'receipt-token-1');
+    expect(result.statusLabel, '접수됨');
+  });
+
+  test('시설 신고 결과는 공개 번호가 없으면 발급 전 사실형 값을 보여준다', () {
+    const result = FacilityReportResult(
+      id: 'report-1',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      status: 'SUBMITTED',
+      createdAt: '2026-06-13T10:00:00',
+    );
+
+    expect(result.displayReceiptCode, '발급 전');
+  });
+
+  test('시설 신고 결과 접수일 표시 정책을 보존한다', () {
+    final valid = FacilityReportResult(
+      id: 'report-valid-date',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      status: 'SUBMITTED',
+      createdAt: DateTime(2026, 6, 13, 10).toUtc().toIso8601String(),
+    );
+    const invalid = FacilityReportResult(
+      id: 'report-invalid-date',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      status: 'SUBMITTED',
+      createdAt: '__CREATED_AT__',
+    );
+
+    final now = DateTime(2026, 10, 18, 14, 30);
+    expect(valid.createdAtLabel(now: now), '6월 13일 10:00');
+    expect(invalid.createdAtLabel(now: now), isNull);
+  });
+
+  test('시설 신고 application state는 상태와 결과 참조를 보존한다', () {
+    const result = FacilityReportResult(
+      id: 'report-state',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      status: 'SUBMITTED',
+      createdAt: '2026-06-13T10:00:00',
+    );
+    const explicit = FacilityReportState(
+      status: FacilityReportViewStatus.failure,
+      message: '제보 진행 상황을 확인하지 못했어요.',
+      result: result,
+    );
+
+    const idle = FacilityReportState.idle();
+    expect(idle.status, FacilityReportViewStatus.idle);
+    expect(idle.message, isEmpty);
+    expect(idle.result, isNull);
+    expect(explicit.status, FacilityReportViewStatus.failure);
+    expect(explicit.message, '제보 진행 상황을 확인하지 못했어요.');
+    expect(identical(explicit.result, result), isTrue);
+  });
+
+  test('시설 신고 결과 domain parsing과 표시 문구 정책을 보존한다', () {
+    final parsed = FacilityReportResult.fromJson({
+      'id': ' report-1 ',
+      'stationId': 'station-sangnoksu',
+      'facilityId': 'facility-sangnoksu-elevator-1',
+      'reportType': 'UNKNOWN',
+      'description': 42,
+      'status': 'UNKNOWN',
+      'createdAt': '2026-06-13T10:00:00',
+      'receiptToken': null,
+      'publicReceiptCode': '   ',
+    });
+
+    expect(parsed.id, ' report-1 ');
+    expect(parsed.description, '');
+    expect(parsed.receiptToken, '');
+    expect(parsed.displayReceiptCode, '발급 전');
+    expect(parsed.statusLabel, '접수 상태를 불러오지 못했어요');
+    expect(parsed.reportTypeLabel, '시설 제보');
+    expect(
+      () => FacilityReportResult.fromJson(const {}),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          'Missing required report field: id',
+        ),
+      ),
+    );
+  });
+
+  test('시설 신고 요청은 사진 Base64 대신 object metadata를 전송한다', () {
+    final request = FacilityReportRequest(
+      userId: 'anonymous-mobile-user',
+      clientSubmissionId: 'client-submission-1',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      photoFileName: 'elevator-door.jpg',
+      photoContentType: 'image/jpeg',
+      photoObjectKey: 'facility-reports/client-submission-1/photo.jpg',
+      photoSha256: 'a' * 64,
+      photoSizeBytes: 4096,
+    );
+
+    final json = request.toJson();
+
+    expect(json['clientSubmissionId'], 'client-submission-1');
+    expect(json['photoFileName'], 'elevator-door.jpg');
+    expect(json['photoContentType'], 'image/jpeg');
+    expect(
+      json['photoObjectKey'],
+      'facility-reports/client-submission-1/photo.jpg',
+    );
+    expect(json['photoSha256'], 'a' * 64);
+    expect(json['photoSizeBytes'], 4096);
+    expect(json, isNot(contains('photoDataBase64')));
+  });
+
+  test('시설 신고 요청은 trim 뒤 upload object identity만 복사한다', () {
+    const request = FacilityReportRequest(
+      userId: ' anonymous-mobile-user ',
+      clientSubmissionId: ' stale-submission ',
+      stationId: ' station-sangnoksu ',
+      facilityId: ' facility-sangnoksu-elevator-1 ',
+      reportType: ' BROKEN ',
+      description: ' 문이 열리지 않습니다. ',
+      photoFileName: ' elevator-door.jpg ',
+      photoContentType: ' image/jpeg ',
+      photoDataBase64: ' aW1hZ2UtYnl0ZXM= ',
+      latitude: 37.302421,
+      longitude: 126.866221,
+    );
+
+    final uploaded = request.withUploadedPhoto(
+      clientSubmissionId: 'current-submission',
+      photoObjectKey: 'facility-reports/current-submission/photo.jpg',
+      photoSha256: 'a' * 64,
+      photoSizeBytes: 4096,
+    );
+
+    expect(uploaded.userId, 'anonymous-mobile-user');
+    expect(uploaded.clientSubmissionId, 'current-submission');
+    expect(uploaded.stationId, 'station-sangnoksu');
+    expect(uploaded.facilityId, 'facility-sangnoksu-elevator-1');
+    expect(uploaded.reportType, 'BROKEN');
+    expect(uploaded.description, '문이 열리지 않습니다.');
+    expect(uploaded.photoFileName, 'elevator-door.jpg');
+    expect(uploaded.photoContentType, 'image/jpeg');
+    expect(uploaded.photoDataBase64, isNull);
+    expect(
+      uploaded.photoObjectKey,
+      'facility-reports/current-submission/photo.jpg',
+    );
+    expect(uploaded.photoSha256, 'a' * 64);
+    expect(uploaded.photoSizeBytes, 4096);
+    expect(uploaded.latitude, 37.302421);
+    expect(uploaded.longitude, 126.866221);
+  });
+
+  test('시설 신고 failure domain은 exact 안내 문구를 보존한다', () {
+    const error = FacilityReportException('제보를 보내지 못했어요.');
+
+    expect(error.message, '제보를 보내지 못했어요.');
+    expect(error.toString(), '제보를 보내지 못했어요.');
+  });
+
+  test('시설 신고 유형은 현장 접근성 보정 항목을 노출한다', () {
+    expect(
+      FacilityReportTypeOption.values.map((option) => option.reportType),
+      containsAll([
+        'ROUTE_BLOCKED',
+        'ELEVATOR_UNAVAILABLE',
+        'STAIRS_PRESENT',
+        'ETA_INACCURATE',
+        'TRANSFER_IMPOSSIBLE',
+      ]),
+    );
+    expect(
+      const FacilityReportResult(
+        id: 'report-route-blocked',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'ROUTE_BLOCKED',
+        description: '경로가 막혀 있습니다.',
+        status: 'SUBMITTED',
+        createdAt: '2026-06-13T10:00:00',
+      ).reportTypeLabel,
+      '경로가 막혔어요',
+    );
+  });
+
+  test('시설 신고 API 저장소는 사진 PUT 5xx를 한 번 재시도한 뒤 신고를 접수한다', () async {
+    var uploadAttemptCount = 0;
+    var reportRequestCount = 0;
+    late List<int> uploadedPhotoBytes;
+    late Map<String, Object?> requestBody;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      switch ((request.method, request.uri.path)) {
+        case ('POST', '/api/v1/report-uploads'):
+          await utf8.decodeStream(request);
+          request.response
+            ..statusCode = HttpStatus.created
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'success': true,
+                'data': {
+                  'objectKey':
+                      'facility-reports/uploads/client-submission-1-photo.jpg',
+                  'uploadUrl':
+                      '/api/v1/report-uploads/client-submission-1-photo.jpg',
+                  'uploadMethod': 'PUT',
+                },
+              }),
+            );
+          await request.response.close();
+        case ('PUT', '/api/v1/report-uploads/client-submission-1-photo.jpg'):
+          uploadAttemptCount++;
+          final bytes = await request.fold<List<int>>(
+            <int>[],
+            (previous, chunk) => previous..addAll(chunk),
+          );
+          if (uploadAttemptCount == 1) {
+            request.response.statusCode = HttpStatus.serviceUnavailable;
+            await request.response.close();
+            return;
+          }
+          uploadedPhotoBytes = bytes;
+          request.response.statusCode = HttpStatus.noContent;
+          await request.response.close();
+        case ('POST', '/api/v1/reports'):
+          reportRequestCount++;
+          requestBody =
+              jsonDecode(await utf8.decodeStream(request))
+                  as Map<String, Object?>;
+          request.response
+            ..statusCode = HttpStatus.created
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'success': true,
+                'data': {
+                  'id': 'report-1',
+                  'stationId': 'station-sangnoksu',
+                  'facilityId': 'facility-sangnoksu-elevator-1',
+                  'reportType': 'BROKEN',
+                  'description': '문이 열리지 않습니다.',
+                  'status': 'SUBMITTED',
+                  'createdAt': '2026-06-13T10:00:00',
+                  'receiptToken': 'receipt-token-1',
+                },
+              }),
+            );
+          await request.response.close();
+        default:
+          await utf8.decodeStream(request);
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+      }
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    final result = await repository.createReport(
+      const FacilityReportRequest(
+        userId: 'anonymous-mobile-user',
+        clientSubmissionId: 'client-submission-1',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+        photoFileName: 'elevator-door.jpg',
+        photoContentType: 'image/jpeg',
+        photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+      ),
+    );
+
+    expect(uploadAttemptCount, 2);
+    expect(uploadedPhotoBytes, utf8.encode('image-bytes'));
+    expect(reportRequestCount, 1);
+    expect(
+      requestBody['photoObjectKey'],
+      'facility-reports/uploads/client-submission-1-photo.jpg',
+    );
+    expect(requestBody, isNot(contains('photoDataBase64')));
+    expect(result.id, 'report-1');
+  });
+
+  test('시설 신고 API 저장소는 사진 PUT 재시도 한도 초과 시 신고 본문을 보내지 않는다', () async {
+    var uploadAttemptCount = 0;
+    var reportRequestCount = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      switch ((request.method, request.uri.path)) {
+        case ('POST', '/api/v1/report-uploads'):
+          await utf8.decodeStream(request);
+          request.response
+            ..statusCode = HttpStatus.created
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'success': true,
+                'data': {
+                  'objectKey':
+                      'facility-reports/uploads/client-submission-1-photo.jpg',
+                  'uploadUrl':
+                      '/api/v1/report-uploads/client-submission-1-photo.jpg',
+                  'uploadMethod': 'PUT',
+                },
+              }),
+            );
+          await request.response.close();
+        case ('PUT', '/api/v1/report-uploads/client-submission-1-photo.jpg'):
+          uploadAttemptCount++;
+          await utf8.decodeStream(request);
+          request.response.statusCode = HttpStatus.serviceUnavailable;
+          await request.response.close();
+        case ('POST', '/api/v1/reports'):
+          reportRequestCount++;
+          await utf8.decodeStream(request);
+          request.response.statusCode = HttpStatus.created;
+          await request.response.close();
+        default:
+          await utf8.decodeStream(request);
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
+      }
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    await expectLater(
+      repository.createReport(
+        const FacilityReportRequest(
+          userId: 'anonymous-mobile-user',
+          clientSubmissionId: 'client-submission-1',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'BROKEN',
+          description: '문이 열리지 않습니다.',
+          photoFileName: 'elevator-door.jpg',
+          photoContentType: 'image/jpeg',
+          photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+        ),
+      ),
+      throwsA(isA<FacilityReportException>()),
+    );
+
+    expect(uploadAttemptCount, 2);
+    expect(reportRequestCount, 0);
+  });
+
+  test('시설 신고 API 저장소는 receipt 저장 실패에도 접수 결과를 유지한다', () async {
+    late Map<String, Object?> requestBody;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestBody =
+          jsonDecode(await utf8.decodeStream(request)) as Map<String, Object?>;
+      request.response
+        ..statusCode = HttpStatus.created
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': 'report-1',
+              'stationId': 'station-sangnoksu',
+              'facilityId': 'facility-sangnoksu-elevator-1',
+              'reportType': 'BROKEN',
+              'description': '문이 열리지 않습니다.',
+              'status': 'SUBMITTED',
+              'createdAt': '2026-06-13T10:00:00',
+              'publicReceiptCode': 'ES-1001',
+              'receiptToken': 'receipt-token-1',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: FakeFacilityReportReceiptStore(null, true),
+    );
+
+    final result = await repository.createReport(
+      const FacilityReportRequest(
+        userId: 'anonymous-mobile-user',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+      ),
+    );
+
+    expect(result.id, 'report-1');
+    expect(result.receiptToken, 'receipt-token-1');
+    expect(requestBody['clientSubmissionId'], isA<String>());
+  });
+
+  test('시설 신고 API 저장소는 사진 없는 신고에도 제출 식별자를 전송한다', () async {
+    late Map<String, Object?> requestBody;
+    final receiptStore = FakeFacilityReportReceiptStore();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestBody =
+          jsonDecode(await utf8.decodeStream(request)) as Map<String, Object?>;
+      request.response
+        ..statusCode = HttpStatus.created
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': 'report-1',
+              'stationId': 'station-sangnoksu',
+              'facilityId': 'facility-sangnoksu-elevator-1',
+              'reportType': 'BROKEN',
+              'description': '문이 열리지 않습니다.',
+              'status': 'SUBMITTED',
+              'createdAt': '2026-06-13T10:00:00',
+              'publicReceiptCode': 'ES-1001',
+              'receiptToken': 'receipt-token-1',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: receiptStore,
+    );
+
+    final result = await repository.createReport(
+      const FacilityReportRequest(
+        userId: 'anonymous-mobile-user',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+      ),
+    );
+
+    expect(requestBody['clientSubmissionId'], isA<String>());
+    expect(requestBody['clientSubmissionId'], isNot(isEmpty));
+    expect(requestBody, isNot(contains('photoObjectKey')));
+    expect(result.receiptToken, 'receipt-token-1');
+    expect(result.publicReceiptCode, 'ES-1001');
+    expect(receiptStore.savedPublicReceiptCodes['report-1'], 'ES-1001');
+    expect(
+      await receiptStore.receiptTokenForReport('report-1'),
+      'receipt-token-1',
+    );
+  });
+
+  test('시설 신고 API 저장소는 upload intent method 불일치를 실패로 처리한다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      await utf8.decodeStream(request);
+      request.response
+        ..statusCode = HttpStatus.created
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'objectKey': 'facility-reports/uploads/client-submission-1.jpg',
+              'uploadUrl': '/api/v1/report-uploads/client-submission-1.jpg',
+              'uploadMethod': 'POST',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    await expectLater(
+      repository.createReport(
+        const FacilityReportRequest(
+          userId: 'anonymous-mobile-user',
+          clientSubmissionId: 'client-submission-1',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'BROKEN',
+          description: '문이 열리지 않습니다.',
+          photoFileName: 'elevator-door.jpg',
+          photoContentType: 'image/jpeg',
+          photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+        ),
+      ),
+      throwsA(isA<FacilityReportException>()),
+    );
+  });
+
+  test('시설 신고 요청은 사진이 없으면 사진 데이터를 전송하지 않는다', () {
+    final request = const FacilityReportRequest(
+      userId: 'anonymous-mobile-user',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+    );
+
+    expect(request.toJson(), isNot(contains('photoUrl')));
+    expect(request.toJson(), isNot(contains('photoFileName')));
+    expect(request.toJson(), isNot(contains('photoContentType')));
+    expect(request.toJson(), isNot(contains('photoDataBase64')));
+  });
+
+  test('시설 신고 요청은 현재 위치가 없으면 좌표를 전송하지 않는다', () {
+    final request = const FacilityReportRequest(
+      userId: 'anonymous-mobile-user',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+    );
+
+    expect(request.toJson(), isNot(contains('latitude')));
+    expect(request.toJson(), isNot(contains('longitude')));
+  });
+
+  test('시설 신고 API 저장소는 인증 실패 시 인증을 지우고 한 번 재시도한다', () async {
+    final authorizationHeaders = <String?>[];
+    var requestCount = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestCount++;
+      authorizationHeaders.add(
+        request.headers.value(HttpHeaders.authorizationHeader),
+      );
+      await utf8.decodeStream(request);
+      request.response.headers.contentType = ContentType.json;
+
+      if (requestCount == 1) {
+        request.response
+          ..statusCode = HttpStatus.unauthorized
+          ..write(jsonEncode({'success': false}));
+        await request.response.close();
+        return;
+      }
+
+      request.response
+        ..statusCode = HttpStatus.created
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': 'report-1',
+              'stationId': 'station-sangnoksu',
+              'facilityId': 'facility-sangnoksu-elevator-1',
+              'reportType': 'BROKEN',
+              'description': '문이 열리지 않습니다.',
+              'status': 'SUBMITTED',
+              'createdAt': '2026-06-13T10:00:00',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final authProvider = RetryAuthorizationHeaderProvider();
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: authProvider,
+    );
+
+    final result = await repository.createReport(
+      const FacilityReportRequest(
+        userId: 'anonymous-mobile-user',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+      ),
+    );
+
+    expect(result.id, 'report-1');
+    expect(authorizationHeaders, ['Basic stale-token', 'Basic fresh-token']);
+    expect(authProvider.authorizationCount, 2);
+    expect(authProvider.invalidateCount, 1);
+  });
+
+  test('시설 신고 API 저장소는 잘못된 접수 응답도 쉬운 실패 문구로 바꾼다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.created
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {'id': 'report-1'},
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        repository.createReport(
+          const FacilityReportRequest(
+            userId: 'anonymous-mobile-user',
+            stationId: 'station-sangnoksu',
+            facilityId: 'facility-sangnoksu-elevator-1',
+            reportType: 'BROKEN',
+            description: '문이 열리지 않습니다.',
+          ),
+        ),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            '제보를 보내지 못했어요.',
+          ),
+        ),
+      );
+    });
+    expect(reportedErrors, hasLength(1));
+  });
+
+  test('시설 신고 API 저장소는 파싱 실패 원인과 스택을 오류 경계에 보고한다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.created
+        ..headers.contentType = ContentType.json
+        ..write('{broken-json');
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        repository.createReport(
+          const FacilityReportRequest(
+            userId: 'anonymous-mobile-user',
+            stationId: 'station-sangnoksu',
+            facilityId: 'facility-sangnoksu-elevator-1',
+            reportType: 'BROKEN',
+            description: '문이 열리지 않습니다.',
+          ),
+        ),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            '제보를 보내지 못했어요.',
+          ),
+        ),
+      );
+    });
+
+    expect(reportedErrors, hasLength(1));
+    expect(reportedErrors.single.exception, isA<ApiException>());
+    expect(
+      (reportedErrors.single.exception as ApiException).cause,
+      isA<FormatException>(),
+    );
+    expect(reportedErrors.single.stack, isNotNull);
+  });
+
+  test('시설 신고 API 저장소는 접수번호로 제보 진행 상황을 조회한다', () async {
+    late String requestMethod;
+    late String requestPath;
+    late String? receiptTokenHeader;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestMethod = request.method;
+      requestPath = request.uri.path;
+      receiptTokenHeader = request.headers.value(
+        'X-Easysubway-Report-Receipt-Token',
+      );
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': 'report-1',
+              'stationId': 'station-sangnoksu',
+              'facilityId': 'facility-sangnoksu-elevator-1',
+              'reportType': 'BROKEN',
+              'description': '문이 열리지 않습니다.',
+              'status': 'ACCEPTED',
+              'createdAt': '2026-06-13T10:00:00',
+              'publicReceiptCode': 'ES-1001',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: FakeFacilityReportReceiptStore({
+        'report-1': 'receipt-token-1',
+      }),
+    );
+
+    final result = await repository.getReport('report-1');
+
+    expect(requestMethod, 'GET');
+    expect(requestPath, '/api/v1/reports/report-1');
+    expect(receiptTokenHeader, 'receipt-token-1');
+    expect(result.id, 'report-1');
+    expect(result.status, 'ACCEPTED');
+    expect(result.statusLabel, '반영됨');
+  });
+
+  test('내 신고 API 저장소는 로컬 receipt 목록으로 상태 조회 API만 호출한다', () async {
+    final requestPaths = <String>[];
+    final receiptTokens = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestPaths.add(request.uri.path);
+      receiptTokens.add(
+        request.headers.value('X-Easysubway-Report-Receipt-Token'),
+      );
+      final reportId = request.uri.pathSegments.last;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': reportId,
+              'stationId': 'station-sangnoksu',
+              'facilityId': reportId == 'report-2'
+                  ? 'facility-sangnoksu-elevator-1'
+                  : 'facility-sangnoksu-elevator-2',
+              'reportType': reportId == 'report-2' ? 'CLOSED' : 'BROKEN',
+              'description': reportId == 'report-2'
+                  ? '출입문이 막혀 있습니다.'
+                  : '버튼이 눌리지 않습니다.',
+              'status': reportId == 'report-2' ? 'ACCEPTED' : 'SUBMITTED',
+              'createdAt': reportId == 'report-2'
+                  ? '2026-06-15T09:00:00'
+                  : '2026-06-14T09:00:00',
+              'publicReceiptCode': reportId == 'report-2'
+                  ? 'ES-1002'
+                  : 'ES-1001',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final receiptStore = FakeFacilityReportReceiptStore({
+      'report-2': 'receipt-token-2',
+      'report-1': 'receipt-token-1',
+    });
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: receiptStore,
+    );
+
+    final reports = await repository.listMyReports();
+
+    expect(requestPaths, [
+      '/api/v1/reports/report-2',
+      '/api/v1/reports/report-1',
+    ]);
+    expect(receiptTokens, ['receipt-token-2', 'receipt-token-1']);
+    expect(reports, hasLength(2));
+    expect(reports.first.id, 'report-2');
+    expect(reports.first.publicReceiptCode, 'ES-1002');
+    expect(reports.first.statusLabel, '반영됨');
+    expect(reports.last.statusLabel, '접수됨');
+    expect(receiptStore.savedPublicReceiptCodes, {
+      'report-2': 'ES-1002',
+      'report-1': 'ES-1001',
+    });
+    expect(receiptStore.savedStatuses, {
+      'report-2': 'ACCEPTED',
+      'report-1': 'SUBMITTED',
+    });
+  });
+
+  test('내 신고 API 저장소는 빈 공개 번호 응답에서 로컬 제보 번호를 유지한다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': 'report-1',
+              'stationId': 'station-sangnoksu',
+              'facilityId': 'facility-sangnoksu-elevator-1',
+              'reportType': 'BROKEN',
+              'description': '버튼이 눌리지 않습니다.',
+              'status': 'ACCEPTED',
+              'createdAt': '2026-06-14T09:00:00',
+              'publicReceiptCode': ' ',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final receiptStore = FakeFacilityReportReceiptStore({
+      'report-1': 'receipt-token-1',
+    });
+    receiptStore.savedPublicReceiptCodes['report-1'] = 'ES-CACHED1';
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: receiptStore,
+    );
+
+    final reports = await repository.listMyReports();
+
+    expect(reports.single.publicReceiptCode, 'ES-CACHED1');
+    expect(reports.single.displayReceiptCode, 'ES-CACHED1');
+    expect(receiptStore.savedPublicReceiptCodes['report-1'], 'ES-CACHED1');
+    expect(receiptStore.savedStatuses['report-1'], 'ACCEPTED');
+  });
+
+  test('내 신고 API 저장소는 receipt가 없으면 목록 조회 네트워크를 호출하지 않는다', () async {
+    var requestCount = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      requestCount++;
+      request.response.statusCode = HttpStatus.internalServerError;
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: FakeFacilityReportReceiptStore(),
+    );
+
+    final reports = await repository.listMyReports();
+
+    expect(reports, isEmpty);
+    expect(requestCount, 0);
+  });
+
+  test('시설 신고 API 저장소는 상태 조회 실패를 전용 안내 문구로 바꾼다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.internalServerError
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({'success': false}));
+      await request.response.close();
+    });
+
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+
+    await expectLater(
+      repository.getReport('report-1'),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          '제보 진행 상황을 확인하지 못했어요.',
+        ),
+      ),
+    );
+  });
+
+  test('시설 신고 API 저장소는 upload intent 거부 시 사진 전송을 중단한다', () async {
+    final apiClient = _UploadIntentFailureApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+    );
+
+    await expectLater(
+      repository.createReport(
+        const FacilityReportRequest(
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'BROKEN',
+          description: '문이 열리지 않습니다.',
+          photoFileName: 'elevator-door.jpg',
+          photoContentType: 'image/jpeg',
+          photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+        ),
+      ),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          facilityReportSubmitFailureMessage,
+        ),
+      ),
+    );
+    expect(apiClient.putCount, 0);
+  });
+
+  test('시설 신고 API 저장소는 사진 transport 재시도 실패를 그대로 닫는다', () async {
+    final apiClient = _PhotoTransportFailureApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+    );
+
+    await expectLater(
+      repository.createReport(
+        const FacilityReportRequest(
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'BROKEN',
+          description: '문이 열리지 않습니다.',
+          photoFileName: 'elevator-door.jpg',
+          photoContentType: 'image/jpeg',
+          photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+        ),
+      ),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          facilityReportSubmitFailureMessage,
+        ),
+      ),
+    );
+    expect(apiClient.putCount, 2);
+  });
+
+  test('시설 신고 API 저장소는 상태 transport 오류를 기록하고 쉬운 실패로 바꾼다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final apiClient = _GetFailureApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        repository.getReport('report-1'),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            facilityReportStatusFailureMessage,
+          ),
+        ),
+      );
+    });
+    expect(reportedErrors.single.exception, isA<StateError>());
+  });
+
+  test('내 신고 API 저장소는 receipt 목록 오류 종류를 보존하거나 쉬운 실패로 바꾼다', () async {
+    const typedFailure = FacilityReportException('receipt 목록 실패');
+    final typedRepository = FacilityReportApiRepository(
+      baseUri: Uri.parse('https://example.invalid'),
+      receiptStore: _ThrowingListFacilityReportReceiptStore(typedFailure),
+    );
+
+    await expectLater(
+      typedRepository.listMyReports(),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          typedFailure.message,
+        ),
+      ),
+    );
+
+    final reportedErrors = _captureReportedErrors();
+    final unexpectedRepository = FacilityReportApiRepository(
+      baseUri: Uri.parse('https://example.invalid'),
+      receiptStore: _ThrowingListFacilityReportReceiptStore(
+        StateError('receipt list failed'),
+      ),
+    );
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        unexpectedRepository.listMyReports(),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            facilityReportListFailureMessage,
+          ),
+        ),
+      );
+    });
+    expect(reportedErrors.single.exception, isA<StateError>());
+  });
+
+  test('내 신고 API 저장소는 receipt refresh 저장 실패에도 조회 결과를 유지한다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final apiClient = _SuccessfulReportApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+      receiptStore: FakeFacilityReportReceiptStore({
+        'report-1': 'receipt-token-1',
+      }, true),
+    );
+
+    late List<FacilityReportResult> reports;
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      reports = await repository.listMyReports();
+    });
+
+    expect(reports.single.id, 'report-1');
+    expect(reports.single.status, 'ACCEPTED');
+    expect(reportedErrors.single.exception, isA<StateError>());
+  });
+
+  test('시설 신고 컨트롤러는 전송 중 중복 제출을 막고 성공 상태를 알린다', () async {
+    final repository = PendingFacilityReportRepository();
+    final controller = FacilityReportController(repository: repository);
+    addTearDown(controller.dispose);
+
+    final target = _reportTarget();
+    final firstSubmit = controller.submit(
+      target: target,
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+    final secondSubmit = controller.submit(
+      target: target,
+      selectedType: FacilityReportTypeOption.closed,
+      description: '다시 누른 요청',
+    );
+
+    expect(repository.requests, hasLength(1));
+    expect(controller.state.status, FacilityReportViewStatus.loading);
+
+    repository.complete();
+    await firstSubmit;
+    await secondSubmit;
+
+    expect(repository.requests, hasLength(1));
+    expect(controller.state.status, FacilityReportViewStatus.success);
+    expect(controller.state.message, '제보를 보냈어요.');
+  });
+
+  test('시설 신고 컨트롤러는 접수 후 제보 진행 상황을 다시 확인한다', () async {
+    final repository = RefreshableFacilityReportRepository();
+    final controller = FacilityReportController(repository: repository);
+    addTearDown(controller.dispose);
+
+    await controller.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+
+    expect(controller.state.result?.statusLabel, '접수됨');
+
+    final refresh = controller.refreshCurrentReport();
+
+    expect(repository.loadedReportIds, ['report-1']);
+    expect(controller.state.status, FacilityReportViewStatus.loading);
+    expect(controller.state.message, '제보 진행 상황 확인 중');
+    expect(controller.state.result?.statusLabel, '접수됨');
+
+    repository.completeRefresh();
+    await refresh;
+
+    expect(controller.state.status, FacilityReportViewStatus.success);
+    expect(controller.state.message, '제보 진행 상황을 확인했어요.');
+    expect(controller.state.result?.statusLabel, '반영됨');
+  });
+
+  test('시설 신고 컨트롤러는 상태 확인 실패에도 접수 결과를 유지한다', () async {
+    final repository = FailingRefreshFacilityReportRepository();
+    final controller = FacilityReportController(repository: repository);
+    addTearDown(controller.dispose);
+
+    await controller.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+
+    await controller.refreshCurrentReport();
+
+    expect(repository.loadedReportIds, ['report-1']);
+    expect(controller.state.status, FacilityReportViewStatus.failure);
+    expect(controller.state.message, '제보 진행 상황을 확인하지 못했어요.');
+    expect(controller.state.result?.id, 'report-1');
+    expect(controller.state.result?.statusLabel, '접수됨');
+  });
+
+  test('시설 제보 컨트롤러 성공 문구는 제보 용어를 유지한다', () async {
+    final repository = PendingFacilityReportRepository();
+    final controller = FacilityReportController(repository: repository);
+    addTearDown(controller.dispose);
+
+    final submit = controller.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+    repository.complete();
+    await submit;
+
+    expect(controller.state.message, '제보를 보냈어요.');
+    expect(controller.state.message, isNot(contains('알려주기')));
+  });
+
+  test('시설 신고 컨트롤러는 사진·좌표 요청과 typed 제출 실패를 보존한다', () async {
+    final repository = PendingFacilityReportRepository();
+    final controller = FacilityReportController(repository: repository);
+    addTearDown(controller.dispose);
+
+    final submit = controller.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+      photoAttachment: const FacilityReportPhotoAttachment(
+        fileName: 'elevator.jpg',
+        contentType: 'image/jpeg',
+        dataBase64: 'cGhvdG8=',
+      ),
+      latitude: 37.3,
+      longitude: 126.8,
+    );
+
+    expect(repository.requests.single.photoFileName, 'elevator.jpg');
+    expect(repository.requests.single.photoContentType, 'image/jpeg');
+    expect(repository.requests.single.photoDataBase64, 'cGhvdG8=');
+    expect(repository.requests.single.latitude, 37.3);
+    expect(repository.requests.single.longitude, 126.8);
+    repository.complete();
+    await submit;
+
+    final failureController = FacilityReportController(
+      repository: _ControllerBoundaryRepository(
+        createError: const FacilityReportException('사진을 다시 확인해 주세요.'),
+      ),
+    );
+    addTearDown(failureController.dispose);
+    await failureController.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+
+    expect(failureController.state.status, FacilityReportViewStatus.failure);
+    expect(failureController.state.message, '사진을 다시 확인해 주세요.');
+  });
+
+  test('시설 신고 컨트롤러는 예상 밖 제출·새로고침 오류를 기록한다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final submitController = FacilityReportController(
+      repository: _ControllerBoundaryRepository(
+        createError: StateError('submit failed'),
+      ),
+    );
+    addTearDown(submitController.dispose);
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await submitController.submit(
+        target: _reportTarget(),
+        selectedType: FacilityReportTypeOption.broken,
+        description: '문이 열리지 않습니다.',
+      );
+    });
+
+    expect(submitController.state.status, FacilityReportViewStatus.failure);
+    expect(submitController.state.message, facilityReportSubmitFailureMessage);
+
+    final refreshController = FacilityReportController(
+      repository: _ControllerBoundaryRepository(
+        getError: StateError('refresh failed'),
+      ),
+    );
+    addTearDown(refreshController.dispose);
+    await refreshController.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await refreshController.refreshCurrentReport();
+    });
+
+    expect(refreshController.state.status, FacilityReportViewStatus.failure);
+    expect(refreshController.state.message, '제보 진행 상황을 확인하지 못했어요.');
+    expect(refreshController.state.result?.id, 'report-1');
+    expect(reportedErrors.map((details) => details.exception), [
+      isA<StateError>(),
+      isA<StateError>(),
+    ]);
+  });
+
+  test('내 신고 목록 조회는 receipt 토큰을 재사용하고 동시 요청 수를 4 이하로 제한한다', () async {
+    var activeRequests = 0;
+    var maxActiveRequests = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      activeRequests++;
+      if (activeRequests > maxActiveRequests) {
+        maxActiveRequests = activeRequests;
+      }
+      final reportId = request.uri.pathSegments.last;
+      final index = int.parse(reportId.split('-').last);
+      // 앞선 항목이 더 느려도 결과 순서가 유지되는지 함께 검증한다.
+      await Future<void>.delayed(Duration(milliseconds: (10 - index) * 8));
+      activeRequests--;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': reportId,
+              'stationId': 'station-sangnoksu',
+              'facilityId': 'facility-sangnoksu-elevator-1',
+              'reportType': 'BROKEN',
+              'description': '점검 요청',
+              'status': 'ACCEPTED',
+              'createdAt': '2026-06-14T09:00:00',
+              'publicReceiptCode': 'ES-$index',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final tokens = <String, String>{
+      for (var i = 0; i < 10; i++) 'report-$i': 'token-$i',
+    };
+    final receiptStore = _CountingReceiptStore(tokens);
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: receiptStore,
+    );
+
+    final reports = await repository.listMyReports();
+
+    expect(reports.map((report) => report.id).toList(), [
+      for (var i = 0; i < 10; i++) 'report-$i',
+    ]);
+    expect(maxActiveRequests, greaterThan(1));
+    expect(maxActiveRequests, lessThanOrEqualTo(4));
+    expect(receiptStore.receiptTokenForReportCount, 0);
+  });
+}
+
+class FakeLostDataImagePicker extends ImagePicker {
+  FakeLostDataImagePicker(this.response);
+
+  final LostDataResponse response;
+
+  @override
+  Future<LostDataResponse> retrieveLostData() async => response;
+}
+
+List<FlutterErrorDetails> _captureReportedErrors() {
+  return <FlutterErrorDetails>[];
+}
+
+FacilityReportTarget _reportTarget() {
+  return const FacilityReportTarget(
+    stationId: 'station-sangnoksu',
+    stationName: '상록수',
+    facilityId: 'facility-sangnoksu-elevator-1',
+    facilityName: '1번 출구 엘리베이터',
+    facilityTypeLabel: '엘리베이터',
+    facilityStatusLabel: '정상',
+  );
+}
+
+class PendingFacilityReportRepository
+    implements repository_owner.FacilityReportRepository {
+  final requests = <FacilityReportRequest>[];
+  final _completer = Completer<FacilityReportResult>();
+
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) {
+    requests.add(request);
+    return _completer.future;
+  }
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() {
+    throw UnimplementedError();
+  }
+
+  void complete() {
+    _completer.complete(
+      const FacilityReportResult(
+        id: 'report-1',
+        publicReceiptCode: 'ES-1001',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+        status: 'SUBMITTED',
+        createdAt: '2026-06-13T10:00:00',
+      ),
+    );
+  }
+}
+
+class RefreshableFacilityReportRepository
+    implements repository_owner.FacilityReportRepository {
+  final requests = <FacilityReportRequest>[];
+  final loadedReportIds = <String>[];
+  Completer<FacilityReportResult>? _refreshCompleter;
+
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) {
+    requests.add(request);
+    return Future.value(
+      const FacilityReportResult(
+        id: 'report-1',
+        publicReceiptCode: 'ES-1001',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+        status: 'SUBMITTED',
+        createdAt: '2026-06-13T10:00:00',
+      ),
+    );
+  }
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) {
+    loadedReportIds.add(reportId);
+    _refreshCompleter = Completer<FacilityReportResult>();
+    return _refreshCompleter!.future;
+  }
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() {
+    throw UnimplementedError();
+  }
+
+  void completeRefresh() {
+    _refreshCompleter!.complete(
+      const FacilityReportResult(
+        id: 'report-1',
+        publicReceiptCode: 'ES-1001',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+        status: 'ACCEPTED',
+        createdAt: '2026-06-13T10:00:00',
+      ),
+    );
+  }
+}
+
+class FailingRefreshFacilityReportRepository
+    implements repository_owner.FacilityReportRepository {
+  final loadedReportIds = <String>[];
+
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) {
+    return Future.value(
+      const FacilityReportResult(
+        id: 'report-1',
+        stationId: 'station-sangnoksu',
+        facilityId: 'facility-sangnoksu-elevator-1',
+        reportType: 'BROKEN',
+        description: '문이 열리지 않습니다.',
+        status: 'SUBMITTED',
+        createdAt: '2026-06-13T10:00:00',
+      ),
+    );
+  }
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) {
+    loadedReportIds.add(reportId);
+    return Future.error(const FacilityReportException('제보 진행 상황을 확인하지 못했어요.'));
+  }
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() {
+    throw UnimplementedError();
+  }
+}
+
+class _ControllerBoundaryRepository
+    implements repository_owner.FacilityReportRepository {
+  _ControllerBoundaryRepository({this.createError, this.getError});
+
+  final Object? createError;
+  final Object? getError;
+
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) {
+    final error = createError;
+    if (error != null) return Future.error(error);
+    return Future.value(_controllerReportResult);
+  }
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) {
+    final error = getError;
+    if (error != null) return Future.error(error);
+    return Future.value(_controllerReportResult);
+  }
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() {
+    throw UnimplementedError();
+  }
+}
+
+const _controllerReportResult = FacilityReportResult(
+  id: 'report-1',
+  publicReceiptCode: 'ES-1001',
+  stationId: 'station-sangnoksu',
+  facilityId: 'facility-sangnoksu-elevator-1',
+  reportType: 'BROKEN',
+  description: '문이 열리지 않습니다.',
+  status: 'SUBMITTED',
+  createdAt: '2026-06-13T10:00:00',
+);
+
+class _UploadIntentFailureApiClient extends ApiClient {
+  _UploadIntentFailureApiClient()
+    : super(baseUri: Uri.parse('https://example.invalid'));
+
+  int putCount = 0;
+
+  @override
+  Future<ApiResponse> postJson(
+    String path, {
+    required Map<String, Object?> body,
+    Map<String, String> headers = const {},
+  }) async {
+    return const ApiResponse(statusCode: HttpStatus.badRequest, jsonBody: null);
+  }
+
+  @override
+  Future<ApiResponse> putBytes(
+    Uri uri, {
+    required List<int> body,
+    required ContentType contentType,
+    Map<String, String> headers = const {},
+  }) async {
+    putCount++;
+    return const ApiResponse(statusCode: HttpStatus.ok, jsonBody: null);
+  }
+}
+
+class _PhotoTransportFailureApiClient extends ApiClient {
+  _PhotoTransportFailureApiClient()
+    : super(baseUri: Uri.parse('https://example.invalid'));
+
+  int putCount = 0;
+
+  @override
+  Future<ApiResponse> postJson(
+    String path, {
+    required Map<String, Object?> body,
+    Map<String, String> headers = const {},
+  }) async {
+    return const ApiResponse(
+      statusCode: HttpStatus.created,
+      jsonBody: {
+        'success': true,
+        'data': {
+          'objectKey': 'facility-reports/uploads/report-1.jpg',
+          'uploadUrl': '/api/v1/report-uploads/report-1.jpg',
+          'uploadMethod': 'PUT',
+        },
+      },
+    );
+  }
+
+  @override
+  Future<ApiResponse> putBytes(
+    Uri uri, {
+    required List<int> body,
+    required ContentType contentType,
+    Map<String, String> headers = const {},
+  }) async {
+    putCount++;
+    throw const ApiException('사진 전송 실패');
+  }
+}
+
+class _GetFailureApiClient extends ApiClient {
+  _GetFailureApiClient() : super(baseUri: Uri.parse('https://example.invalid'));
+
+  @override
+  Future<ApiResponse> getJson(
+    String path, {
+    Map<String, String> headers = const {},
+  }) async {
+    throw StateError('status transport failed');
+  }
+}
+
+class _SuccessfulReportApiClient extends ApiClient {
+  _SuccessfulReportApiClient()
+    : super(baseUri: Uri.parse('https://example.invalid'));
+
+  @override
+  Future<ApiResponse> getJson(
+    String path, {
+    Map<String, String> headers = const {},
+  }) async {
+    return const ApiResponse(
+      statusCode: HttpStatus.ok,
+      jsonBody: {
+        'success': true,
+        'data': {
+          'id': 'report-1',
+          'stationId': 'station-sangnoksu',
+          'facilityId': 'facility-sangnoksu-elevator-1',
+          'reportType': 'BROKEN',
+          'description': '문이 열리지 않습니다.',
+          'status': 'ACCEPTED',
+          'createdAt': '2026-06-13T10:00:00',
+          'publicReceiptCode': 'ES-1001',
+        },
+      },
+    );
+  }
+}
+
+class _ThrowingListFacilityReportReceiptStore
+    implements FacilityReportReceiptStore {
+  const _ThrowingListFacilityReportReceiptStore(this.error);
+
+  final Object error;
+
+  @override
+  Future<List<FacilityReportReceipt>> listReceipts() async {
+    throw error;
+  }
+
+  @override
+  Future<String?> receiptTokenForReport(String reportId) async => null;
+
+  @override
+  Future<void> saveReceipt(FacilityReportReceipt receipt) async {}
+}
+
+class FakeFacilityReportReceiptStore implements FacilityReportReceiptStore {
+  FakeFacilityReportReceiptStore([
+    Map<String, String>? receiptTokens,
+    this.throwOnSave = false,
+  ]) : _receiptTokens = Map.of(receiptTokens ?? const {}),
+       _createdAtByReportId = {
+         for (final entry
+             in (receiptTokens ?? const <String, String>{}).keys
+                 .toList()
+                 .asMap()
+                 .entries)
+           entry.value: DateTime(
+             2026,
+             6,
+             13,
+             10,
+           ).subtract(Duration(minutes: entry.key)),
+       };
+
+  final Map<String, String> _receiptTokens;
+  final Map<String, DateTime> _createdAtByReportId;
+  final Map<String, String> savedPublicReceiptCodes = {};
+  final Map<String, String> savedStatuses = {};
+  final bool throwOnSave;
+
+  @override
+  Future<void> saveReceipt(FacilityReportReceipt receipt) async {
+    if (throwOnSave) {
+      throw StateError('receipt save failed');
+    }
+    _receiptTokens[receipt.reportId] = receipt.receiptToken;
+    if (receipt.publicReceiptCode != null) {
+      savedPublicReceiptCodes[receipt.reportId] = receipt.publicReceiptCode!;
+    }
+    savedStatuses[receipt.reportId] = receipt.status;
+    _createdAtByReportId[receipt.reportId] = receipt.createdAt;
+  }
+
+  @override
+  Future<String?> receiptTokenForReport(String reportId) async {
+    return _receiptTokens[reportId];
+  }
+
+  @override
+  Future<List<FacilityReportReceipt>> listReceipts() async {
+    return ([
+      for (final entry in _receiptTokens.entries)
+        FacilityReportReceipt(
+          receiptId: entry.key,
+          reportId: entry.key,
+          publicReceiptCode: savedPublicReceiptCodes[entry.key],
+          status: 'SUBMITTED',
+          receiptToken: entry.value,
+          createdAt:
+              _createdAtByReportId[entry.key] ?? DateTime(2026, 6, 13, 10),
+        ),
+    ]..sort((left, right) => right.createdAt.compareTo(left.createdAt)));
+  }
+}
+
+class RetryAuthorizationHeaderProvider implements AuthorizationHeaderProvider {
+  int authorizationCount = 0;
+  int invalidateCount = 0;
+
+  @override
+  Future<String?> authorizationHeader() async {
+    authorizationCount++;
+    if (authorizationCount == 1) {
+      return 'Basic stale-token';
+    }
+    return 'Basic fresh-token';
+  }
+
+  @override
+  Future<void> invalidateAuthorization() async {
+    invalidateCount++;
+  }
+}
+
+class _TrackingPhotoXFile extends XFile {
+  _TrackingPhotoXFile({
+    required this.reportedLength,
+    required this.bytes,
+    String name = 'photo.jpg',
+  }) : super.fromData(bytes, name: name);
+
+  final int reportedLength;
+  final Uint8List bytes;
+  bool readAsBytesCalled = false;
+
+  @override
+  Future<int> length() async => reportedLength;
+
+  @override
+  Future<Uint8List> readAsBytes() async {
+    readAsBytesCalled = true;
+    return bytes;
+  }
+}
+
+class _CountingReceiptStore extends FakeFacilityReportReceiptStore {
+  _CountingReceiptStore(super.receiptTokens);
+
+  int receiptTokenForReportCount = 0;
+
+  @override
+  Future<String?> receiptTokenForReport(String reportId) {
+    receiptTokenForReportCount++;
+    return super.receiptTokenForReport(reportId);
+  }
+}

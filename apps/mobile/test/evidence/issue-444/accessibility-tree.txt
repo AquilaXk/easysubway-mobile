@@ -1,0 +1,17 @@
+# #444 재승차 경로 Android 접근성 트리 (TalkBack이 읽는 노드)
+# 수집: Android emulator easysubway_ps16k_api36 (Android 16, API 36), adb shell uiautomator dump
+# 표기: content-desc 또는 text  [클래스, clickable 여부]  bounds
+
+- Back  [Button, clickable]  [11,139][137,265]
+- 경로 찾기  [View, not clickable]  [189,149][493,254]
+- 최단시간, 60분, 환승 1회, 10:00 도착  [Button, clickable]  [42,275][294,308]
+- 60분 소요, 09:00 출발, 10:00 도착, 환승 1회, 카드 2,600원, 도보 900m  [View, not clickable]  [42,350][837,704]
+- 구간: 도보 1분, 2호선 10분, 환승 도보 40분, 2호선 8분, 도보 1분  [View, not clickable]  [42,736][1038,801]
+- 용산역, 09:00 출발, 승강장까지 도보 1분  [View, not clickable]  [168,854][1038,1032]
+- 2호선 station-transfer 방면 탑승, 09:00 출발, 1개 역 이동, 10분  [View, not clickable]  [168,1074][1038,1258]
+- station-transfer 환승, 도보 40분  [View, not clickable]  [168,1410][623,1584]
+- 노외 환승 (시간 초과)  [View, not clickable]  [186,1602][576,1668]
+- 재승차 운임 발생  [View, not clickable]  [610,1594][938,1665]
+- 2호선 춘천역 방면 탑승, 09:52 출발, 1개 역 이동, 8분  [View, not clickable]  [168,1718][1038,1807]
+- 춘천역, 10:00 도착, 출구까지 도보 1분  [View, not clickable]  [168,1959][1038,2138]
+- 공유  [Button, clickable]  [42,2169][1038,2295]

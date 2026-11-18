@@ -1,0 +1,3 @@
+Launching integration_test/native_test.dart on sdk gphone64 x86 64 in debug mode...
+error: device 'emulator-5554' not found
+Error: Unable to find any device.

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "builtAt": "2026-09-24T03:34:28.000Z",
+  "qualityAsOf": "2026-09-09T03:16:08.098Z",
+  "freshnessExpiresAt": "2026-10-09T03:16:08.098Z",
+  "sourceSnapshotSetHash": "a7b44bed6999142d6b716814a22071f890af2b341e2f27d898ebeb2e55d5716f",
+  "schemaIdentity": "catalog-schema-v1",
+  "packs": [
+    {
+      "id": "nationwide",
+      "asset": "assets/datapacks/nationwide.sqlite.gz",
+      "sha256": "c6fc26901d54047d49dd81386a3355d0ae6b2c2a26236c6a44a59fa4ada47ef2",
+      "sqliteSha256": "f3a797aacfef046eab49b1400562286743e3543ed066e6cb8695c1f36ff1aa23",
+      "byteSize": 6397564
+    }
+  ]
+}

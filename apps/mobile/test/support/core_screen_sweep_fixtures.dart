@@ -1,0 +1,875 @@
+// 핵심 화면 접근성 전수 검사(core_screen_guideline_sweep_test.dart)가 앱을 띄우는
+// 고정 응답 모음. 화면 표(core_screen_sweep_screens.dart)가 같은 응답을 공유한다.
+import 'dart:async' show Completer;
+
+import 'package:easysubway_mobile/app/demo_dependencies.dart';
+import 'package:easysubway_mobile/app/easy_subway_app.dart';
+import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
+import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
+import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
+import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
+import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
+import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
+import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
+import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
+import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+import 'easy_subway_app_fixture.dart';
+
+const sweepStationId = 'station-gangnam';
+
+final sweepSearchResult = StationSearchResult(
+  id: sweepStationId,
+  nameKo: '강남',
+  nameEn: 'Gangnam',
+  region: '수도권',
+  dataQualityLevel: 'LEVEL_1',
+  lastVerifiedAt: '2026-09-27',
+  lines: sweepLines,
+);
+
+/// 검색 결과 행이 반복되도록 두는 두 번째 역. 첫 역과 호선이 겹치지 않는다.
+final sweepSecondSearchResult = StationSearchResult(
+  id: 'station-seolleung',
+  nameKo: '선릉',
+  nameEn: 'Seolleung',
+  region: '수도권',
+  dataQualityLevel: 'LEVEL_1',
+  lastVerifiedAt: '2026-09-27',
+  lines: const [
+    StationSearchLine(
+      id: 'seoul-9',
+      name: '수도권 9호선',
+      color: '#BDB092',
+      stationCode: '926',
+    ),
+  ],
+);
+
+/// 환승역으로 두어 역 시간표의 호선 선택 칩까지 그려지게 한다.
+const sweepLines = [
+  StationSearchLine(
+    id: 'seoul-2',
+    name: '수도권 2호선',
+    color: '#00A84D',
+    stationCode: '222',
+  ),
+  StationSearchLine(
+    id: 'seoul-sb',
+    name: '신분당선',
+    color: '#D4003B',
+    stationCode: 'D07',
+  ),
+];
+
+/// 알림함이 읽는 시설·제보 조회의 성공·실패 조합.
+enum SweepInboxLoad {
+  /// 시설과 제보가 모두 성공한다.
+  normal,
+
+  /// 제보 조회가 실패하고 시설 항목이 없어, 알림함 전체가 오류 상태가 된다.
+  failedNoItems,
+
+  /// 제보 조회만 실패하고 시설 항목은 보여, 제보 구역에 오류 행이 뜬다.
+  reportsFailed,
+}
+
+/// 내 제보 목록·알림함이 접수된 제보를 반복해 그리도록 제보 두 건을 돌려준다.
+class SweepReportRepository implements FacilityReportRepository {
+  const SweepReportRepository({this.listFails = false});
+
+  /// true면 [listMyReports]가 실패해 알림함의 오류 상태를 검사할 수 있다.
+  final bool listFails;
+
+  static const _report = FacilityReportResult(
+    id: 'report-1',
+    stationId: sweepStationId,
+    facilityId: 'facility-elevator-1',
+    reportType: 'BROKEN',
+    description: '1번 출구 엘리베이터가 멈춰 있어요.',
+    status: 'SUBMITTED',
+    createdAt: '2026-10-01T09:00:00',
+  );
+
+  static const _secondReport = FacilityReportResult(
+    id: 'report-2',
+    stationId: sweepStationId,
+    facilityId: 'facility-elevator-2',
+    reportType: 'BROKEN',
+    description: '3번 출구 엘리베이터 문이 열리지 않아요.',
+    status: 'SUBMITTED',
+    createdAt: '2026-10-02T09:00:00',
+  );
+
+  @override
+  Future<FacilityReportResult> createReport(
+    FacilityReportRequest request,
+  ) async => _report;
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) async => _report;
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() async {
+    if (listFails) {
+      throw StateError('sweep report list failure');
+    }
+    return const [_report, _secondReport];
+  }
+}
+
+/// 알림함이 시설 항목을 반복해 그리도록 확인이 필요한 즐겨찾기 시설 두 건을 돌려준다.
+class SweepFavoriteFacilityRepository implements FavoriteFacilityRepository {
+  const SweepFavoriteFacilityRepository();
+
+  static const _facility = FavoriteFacility(
+    userId: 'sweep-user',
+    facilityId: 'facility-gangnam-elevator-1',
+    stationId: sweepStationId,
+    stationNameKo: '강남',
+    stationNameEn: 'Gangnam',
+    exitId: 'exit-gangnam-1',
+    type: 'ELEVATOR',
+    name: '1번 출구 엘리베이터',
+    floorFrom: '1F',
+    floorTo: 'B1',
+    description: '1번 출구 앞',
+    status: 'USER_REPORTED',
+    dataConfidence: 'HIGH',
+    dataSourceType: 'OFFICIAL_FILE',
+    lastUpdatedAt: '2026-10-01',
+    addedAt: '2026-10-01T09:00:00',
+  );
+
+  static const _secondFacility = FavoriteFacility(
+    userId: 'sweep-user',
+    facilityId: 'facility-gangnam-elevator-2',
+    stationId: sweepStationId,
+    stationNameKo: '강남',
+    stationNameEn: 'Gangnam',
+    exitId: 'exit-gangnam-3',
+    type: 'ELEVATOR',
+    name: '3번 출구 엘리베이터',
+    floorFrom: '1F',
+    floorTo: 'B1',
+    description: '3번 출구 앞',
+    status: 'USER_REPORTED',
+    dataConfidence: 'HIGH',
+    dataSourceType: 'OFFICIAL_FILE',
+    lastUpdatedAt: '2026-10-01',
+    addedAt: '2026-10-01T09:30:00',
+  );
+
+  @override
+  Future<List<FavoriteFacility>> listFavoriteFacilities() async => const [
+    _facility,
+    _secondFacility,
+  ];
+
+  @override
+  Future<FavoriteFacility> saveFavoriteFacility(String facilityId) async =>
+      _facility;
+
+  @override
+  Future<void> removeFavoriteFacility(String facilityId) async {}
+}
+
+/// 즐겨찾기 화면의 역 행이 반복되도록 서로 다른 역·호선 즐겨찾기 두 건을 돌려준다.
+class SweepFavoriteStationRepository implements FavoriteStationRepository {
+  const SweepFavoriteStationRepository();
+
+  static const _stations = [
+    FavoriteStation(
+      userId: 'sweep-user',
+      stationId: 'station-sangnoksu',
+      lineId: 'seoul-4',
+      nameKo: '상록수',
+      nameEn: 'Sangnoksu',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      lastVerifiedAt: '2026-06-13',
+      lines: [
+        StationSearchLine(
+          id: 'seoul-4',
+          name: '수도권 4호선',
+          color: '#00A5DE',
+          stationCode: '448',
+        ),
+      ],
+      addedAt: '2026-06-13T10:00:00',
+    ),
+    FavoriteStation(
+      userId: 'sweep-user',
+      stationId: sweepStationId,
+      lineId: 'seoul-2',
+      nameKo: '강남',
+      nameEn: 'Gangnam',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      lastVerifiedAt: '2026-09-27',
+      lines: sweepLines,
+      addedAt: '2026-06-13T11:00:00',
+    ),
+  ];
+
+  @override
+  Future<List<FavoriteStation>> listFavoriteStations() async => _stations;
+
+  @override
+  Future<FavoriteStation> saveFavoriteStation(
+    String stationId, {
+    String? lineId,
+  }) async => _stations.first;
+
+  @override
+  Future<void> removeFavoriteStation(
+    String stationId, {
+    String? lineId,
+  }) async {}
+}
+
+/// 같은 삭제 버튼이 경로마다 반복되는 즐겨찾기 화면을 그리려고 경로 세 건을 돌려준다.
+/// 세 번째는 첫 번째와 역 쌍이 같고 이동 유형만 달라, 역 이름만으로는 삭제 버튼을 구분할 수 없다.
+class SweepFavoriteRouteRepository implements FavoriteRouteRepository {
+  const SweepFavoriteRouteRepository();
+
+  static const _routes = [
+    FavoriteRoute(
+      userId: 'sweep-user',
+      favoriteRouteId: 'route-1',
+      routeSearchId: 'route-1',
+      originStationId: 'station-sangnoksu',
+      originStationName: '상록수',
+      destinationStationId: 'station-sadang',
+      destinationStationName: '사당',
+      mobilityType: 'SENIOR',
+      status: 'FOUND',
+      lineId: 'seoul-4',
+      lineName: '수도권 4호선',
+      score: 92,
+      routeCreatedAt: '2026-06-13T09:00:00',
+      addedAt: '2026-06-14T10:00:00',
+    ),
+    FavoriteRoute(
+      userId: 'sweep-user',
+      favoriteRouteId: 'route-2',
+      routeSearchId: 'route-2',
+      originStationId: sweepStationId,
+      originStationName: '강남',
+      destinationStationId: 'station-sadang',
+      destinationStationName: '사당',
+      mobilityType: 'SENIOR',
+      status: 'FOUND',
+      lineId: 'seoul-2',
+      lineName: '수도권 2호선',
+      score: 88,
+      routeCreatedAt: '2026-06-13T09:30:00',
+      addedAt: '2026-06-14T10:30:00',
+    ),
+    FavoriteRoute(
+      userId: 'sweep-user',
+      favoriteRouteId: 'route-3',
+      routeSearchId: 'route-3',
+      originStationId: 'station-sangnoksu',
+      originStationName: '상록수',
+      destinationStationId: 'station-sadang',
+      destinationStationName: '사당',
+      mobilityType: 'WHEELCHAIR',
+      status: 'FOUND',
+      lineId: 'seoul-4',
+      lineName: '수도권 4호선',
+      score: 90,
+      routeCreatedAt: '2026-06-13T09:45:00',
+      addedAt: '2026-06-14T10:45:00',
+    ),
+  ];
+
+  @override
+  Future<List<FavoriteRoute>> listFavoriteRoutes() async => _routes;
+
+  @override
+  Future<void> removeFavoriteRoute(String favoriteRouteId) async {}
+}
+
+/// 공지사항 목록과 홈 운행 지장 배너를 그리려고 일반 공지와 운행 지장 공지를 하나씩 둔다.
+class SweepNoticeRepository implements NoticeRepository {
+  @override
+  Future<ActiveNoticesResult> activeNotices() async =>
+      ActiveNoticesResult.fresh([
+        ServiceNotice(
+          id: 'notice-info',
+          scope: NoticeScope.all,
+          title: '시간표 개편 안내',
+          body: '10월 20일부터 평일 막차 시간이 바뀝니다.',
+          severity: NoticeSeverity.info,
+          publishedAt: DateTime.utc(2026, 10, 1),
+        ),
+        ServiceNotice(
+          id: 'notice-disruption',
+          scope: NoticeScope.line,
+          scopeValue: 'seoul-2',
+          title: '2호선 일부 구간 지연',
+          body: '신호 점검으로 열차가 지연되고 있습니다.',
+          severity: NoticeSeverity.disruption,
+          publishedAt: DateTime.utc(2026, 10, 2),
+        ),
+      ]);
+}
+
+class SweepUserDataDeletionRepository implements UserDataDeletionRepository {
+  @override
+  Future<UserDataDeletionResult> deleteCurrentUserData() async =>
+      const UserDataDeletionResult(
+        userId: 'sweep-user',
+        deletedFavoriteStationCount: 1,
+        deletedFavoriteFacilityCount: 1,
+        deletedFavoriteRouteCount: 1,
+        anonymizedRouteFeedbackCount: 0,
+        notificationSettingsDeleted: true,
+        deletedRegisteredDeviceCount: 0,
+        deletedPushNotificationCount: 0,
+        mobilityProfileDeleted: true,
+        anonymizedReportCount: 1,
+      );
+}
+
+class SweepNotificationSettingsRepository
+    implements NotificationSettingsRepository {
+  static const _settings = NotificationSettings(
+    userId: 'sweep-user',
+    favoriteStationFacilityAlerts: true,
+    favoriteRouteFacilityAlerts: false,
+    reportStatusAlerts: true,
+    dataQualityAlerts: false,
+    updatedAt: '2026-10-01T09:00:00',
+  );
+
+  @override
+  Future<NotificationSettings> getNotificationSettings() async => _settings;
+
+  @override
+  Future<NotificationSettings> saveNotificationSettings(
+    NotificationSettings settings,
+  ) async => settings;
+}
+
+class SweepNotificationPermissionProvider
+    implements NotificationPermissionProvider {
+  @override
+  Future<NotificationPermissionStatus> requestNotificationPermission() async =>
+      NotificationPermissionStatus.granted;
+
+  @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async =>
+      NotificationPermissionStatus.granted;
+}
+
+/// 역 검색 화면의 최근 검색 칩이 반복되도록 검색어 둘을 가진 고정 기록.
+class SweepSearchHistoryRepository extends SearchHistoryRepository {
+  @override
+  Future<void> recordSearch(
+    String query, {
+    String? region,
+    String? stationId,
+    StationSearchLine? line,
+  }) async {}
+
+  @override
+  Future<List<String>> listRecentQueries() async => const ['강남', '선릉'];
+
+  @override
+  Future<void> removeSearch(String query, {String? region}) async {}
+
+  @override
+  Future<void> clearSearches() async {}
+}
+
+/// 홈 노선도·역 상세·역 시간표가 쓰는 고정 응답. 역 검색·노선도·시간표 포트를 함께
+/// 구현한다.
+class SweepRepository
+    implements
+        StationSearchRepository,
+        NetworkMapRepository,
+        StationTimetableRepository {
+  SweepRepository({this.stationResults = const []});
+
+  final List<StationSearchResult> stationResults;
+
+  @override
+  Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
+    return const NetworkMapData(
+      regions: [
+        NetworkMapRegion(name: '수도권'),
+        NetworkMapRegion(name: '부산'),
+      ],
+      selectedRegion: '수도권',
+      lines: [
+        NetworkMapLine(
+          id: 'seoul-2',
+          name: '수도권 2호선',
+          color: '#00A84D',
+          region: '수도권',
+        ),
+      ],
+      stations: [
+        NetworkMapStation(
+          id: 'station-gyodae',
+          nameKo: '교대',
+          nameEn: 'Gyodae',
+          region: '수도권',
+          lineId: 'seoul-2',
+          stationCode: '223',
+          sequence: 1,
+          position: NetworkMapPosition(
+            x: 40,
+            y: 100,
+            labelDx: 0,
+            labelDy: 0,
+            upPath: '',
+            downPath: '',
+            sourceId: 'sweep-fixture',
+          ),
+        ),
+        NetworkMapStation(
+          id: sweepStationId,
+          nameKo: '강남',
+          nameEn: 'Gangnam',
+          region: '수도권',
+          lineId: 'seoul-2',
+          stationCode: '222',
+          sequence: 2,
+          position: NetworkMapPosition(
+            x: 100,
+            y: 100,
+            labelDx: 0,
+            labelDy: 0,
+            upPath: '',
+            downPath: '',
+            sourceId: 'sweep-fixture',
+          ),
+        ),
+        NetworkMapStation(
+          id: 'station-yeoksam',
+          nameKo: '역삼',
+          nameEn: 'Yeoksam',
+          region: '수도권',
+          lineId: 'seoul-2',
+          stationCode: '221',
+          sequence: 3,
+          position: NetworkMapPosition(
+            x: 160,
+            y: 100,
+            labelDx: 0,
+            labelDy: 0,
+            upPath: '',
+            downPath: '',
+            sourceId: 'sweep-fixture',
+          ),
+        ),
+      ],
+      edges: [
+        NetworkMapEdge(
+          id: 'edge-gyodae-gangnam',
+          fromStationId: 'station-gyodae',
+          toStationId: sweepStationId,
+          lineId: 'seoul-2',
+          accessibilityStatus: 'OK',
+          reliabilityScore: 100,
+        ),
+        NetworkMapEdge(
+          id: 'edge-gangnam-yeoksam',
+          fromStationId: sweepStationId,
+          toStationId: 'station-yeoksam',
+          lineId: 'seoul-2',
+          accessibilityStatus: 'OK',
+          reliabilityScore: 100,
+        ),
+      ],
+      positionSources: [],
+    );
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) async {
+    return const StationDetail(
+      id: sweepStationId,
+      nameKo: '강남',
+      nameEn: 'Gangnam',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      lastVerifiedAt: '2026-09-27',
+      latitude: 37.4979,
+      longitude: 127.0276,
+      lines: sweepLines,
+    );
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) async {
+    return const [
+      StationExitInfo(
+        id: 'exit-1',
+        stationId: sweepStationId,
+        exitNumber: '1',
+        name: '1번 출구',
+        description: '강남역 광장·역삼세무서 방면',
+        nearbyDoorHint: '교대 방면 1-1, 역삼 방면 10-4',
+        hasElevatorConnection: true,
+        hasStairOnlyPath: StairOnlyPathStatus.absent,
+        dataConfidence: 'HIGH',
+        lastVerifiedAt: '2026-09-27',
+      ),
+      StationExitInfo(
+        id: 'exit-2',
+        stationId: sweepStationId,
+        exitNumber: '2',
+        name: '2번 출구',
+        description: '강남대로·양재역 방면',
+        nearbyDoorHint: '교대 방면 2-2, 역삼 방면 9-3',
+        hasElevatorConnection: false,
+        hasStairOnlyPath: StairOnlyPathStatus.present,
+        dataConfidence: 'HIGH',
+        lastVerifiedAt: '2026-09-27',
+      ),
+    ];
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(
+    String stationId,
+  ) async {
+    return const [
+      StationFacilityInfo(
+        id: 'facility-elevator-1',
+        stationId: sweepStationId,
+        exitId: 'exit-1',
+        type: 'ELEVATOR',
+        name: '1번 출구 엘리베이터',
+        floorFrom: '지상',
+        floorTo: '대합실',
+        description: '1번 출구 옆 보도 및 상대식 승강장(오른쪽 내리는 문, 반대편 횡단가능) 연결',
+        status: 'BROKEN',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-toilet-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'TOILET',
+        name: '대합실 화장실',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '개찰구 안/밖 1·12번 출구 방면',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-accessible-toilet-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'ACCESSIBLE_TOILET',
+        name: '장애인 화장실',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '개찰구 안/밖 남녀 분리 설치',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-nursing-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'NURSING_ROOM',
+        name: '수유실',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '역무실 옆 고객안전실 인근',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-locker-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'LOCKER',
+        name: '물품보관함',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '1·11번 출구 통로',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+    ];
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) async => stationResults;
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) async => const [];
+
+  StationTimetable _timetable(StationTimetableDayType dayType) =>
+      StationTimetable(
+        stationId: sweepStationId,
+        lineId: 'seoul-2',
+        dayType: dayType,
+        directions: const [
+          StationTimetableDirection(
+            name: '역삼 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
+                seconds: 5 * 3600 + 30 * 60,
+                destination: '성수',
+              ),
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
+                seconds: 9 * 3600,
+                destination: '성수',
+              ),
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
+                seconds: 9 * 3600 + 8 * 60,
+                destination: '성수',
+              ),
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
+                seconds: 23 * 3600 + 52 * 60,
+                destination: '성수',
+              ),
+            ],
+          ),
+          StationTimetableDirection(
+            name: '교대 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '교대 방면',
+                seconds: 5 * 3600 + 32 * 60,
+                destination: '신도림',
+              ),
+              StationTimetableDeparture(
+                directionName: '교대 방면',
+                seconds: 9 * 3600 + 300,
+                destination: '신도림',
+              ),
+              StationTimetableDeparture(
+                directionName: '교대 방면',
+                seconds: 9 * 3600 + 12 * 60,
+                destination: '신도림',
+              ),
+              StationTimetableDeparture(
+                directionName: '교대 방면',
+                seconds: 23 * 3600 + 54 * 60,
+                destination: '서울대입구',
+              ),
+            ],
+          ),
+        ],
+      );
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) async => _timetable(dayType);
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) => loadNextStationTimetable(
+    stationId: stationId,
+    lineId: lineId,
+    asOf: date,
+  );
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) async {
+    final baseSeconds = (asOf.hour * 3600 + asOf.minute * 60).clamp(
+      6 * 3600,
+      23 * 3600,
+    );
+    return StationTimetable(
+      stationId: sweepStationId,
+      lineId: 'seoul-2',
+      dayType: StationTimetableDayType.weekday,
+      directions: [
+        StationTimetableDirection(
+          name: '역삼 방면',
+          departures: [
+            const StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: 5 * 3600 + 30 * 60,
+              destination: '성수',
+            ),
+            StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: baseSeconds + 2 * 60,
+              destination: '성수',
+            ),
+            StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: baseSeconds + 8 * 60,
+              destination: '성수',
+            ),
+            const StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: 23 * 3600 + 52 * 60,
+              destination: '성수',
+            ),
+          ],
+        ),
+        StationTimetableDirection(
+          name: '교대 방면',
+          departures: [
+            const StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: 5 * 3600 + 32 * 60,
+              destination: '신도림',
+            ),
+            StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: baseSeconds + 4 * 60,
+              destination: '신도림',
+            ),
+            StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: baseSeconds + 10 * 60,
+              destination: '신도림',
+            ),
+            const StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: 23 * 3600 + 54 * 60,
+              destination: '서울대입구',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class SweepRealtimeRepository implements RealtimeRepository {
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) async =>
+      const RealtimeSnapshot(
+        status: RealtimeSnapshotStatus.fresh,
+        receivedAt: '09:00',
+        arrivals: [
+          RealtimeArrival(
+            lineId: 'seoul-2',
+            stationName: '강남',
+            destination: '성수행',
+            direction: '역삼 방면',
+            trainNo: '2104',
+            etaSeconds: 120,
+            message: '2분 후 도착',
+            positionMessage: '교대 출발',
+          ),
+          RealtimeArrival(
+            lineId: 'seoul-2',
+            stationName: '강남',
+            destination: '신도림행',
+            direction: '교대 방면',
+            trainNo: '2107',
+            etaSeconds: 240,
+            message: '4분 후 도착',
+            positionMessage: '역삼 출발',
+          ),
+        ],
+      );
+}
+
+/// 시작 로딩 화면을 유지하려고 온보딩 상태 복원을 끝내지 않는 저장소.
+class SweepPendingOnboardingResultStore implements OnboardingResultStore {
+  const SweepPendingOnboardingResultStore();
+
+  @override
+  Future<OnboardingResult?> readResult() =>
+      Completer<OnboardingResult?>().future;
+
+  @override
+  Future<void> saveResult(OnboardingResult result) async {}
+
+  @override
+  Future<void> clearResult() async {}
+}
+
+/// 셀룰러 다운로드 동의 창을 띄우려고 대기 중인 데이터팩 크기를 돌려주는 저장소.
+class SweepPendingConsentDataPackStateRepository
+    implements DataPackUpdateStateRepository {
+  const SweepPendingConsentDataPackStateRepository();
+
+  @override
+  Future<DataPackUpdatePolicyState> readPolicyState() async =>
+      const DataPackUpdatePolicyState(pendingConsentBytes: 12 * 1024 * 1024);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// 전수 검사용으로 구성한 앱. 저장소는 모두 고정 응답이라 네트워크·DB에 닿지 않는다.
+///
+/// [stationResults]는 역 검색 포트가 돌려줄 결과다.
+EasySubwayApp buildSweepApp({
+  required GlobalKey<NavigatorState> navigatorKey,
+  required OnboardingState onboardingState,
+  List<StationSearchResult> stationResults = const [],
+  SweepInboxLoad inboxLoad = SweepInboxLoad.normal,
+  RealtimeRepository? realtimeRepository,
+  OnboardingResultStore? onboardingStore,
+  DataPackUpdateStateRepository? dataPackUpdateStateRepository,
+}) {
+  return buildEasySubwayTestApp(
+    repository: SweepRepository(stationResults: stationResults),
+    realtimeRepository: realtimeRepository,
+    reportRepository: SweepReportRepository(
+      listFails: inboxLoad != SweepInboxLoad.normal,
+    ),
+    searchHistoryRepository: SweepSearchHistoryRepository(),
+    favoriteRepository: const SweepFavoriteStationRepository(),
+    favoriteFacilityRepository: switch (inboxLoad) {
+      SweepInboxLoad.normal => const DemoFavoriteFacilityRepository(),
+      SweepInboxLoad.failedNoItems => null,
+      SweepInboxLoad.reportsFailed => const SweepFavoriteFacilityRepository(),
+    },
+    favoriteRouteRepository: const SweepFavoriteRouteRepository(),
+    noticeRepository: SweepNoticeRepository(),
+    notificationRepository: SweepNotificationSettingsRepository(),
+    userDataDeletionRepository: SweepUserDataDeletionRepository(),
+    notificationPermissionProvider: SweepNotificationPermissionProvider(),
+    onboardingStore: onboardingStore,
+    dataPackUpdateStateRepository: dataPackUpdateStateRepository,
+    navigatorKey: navigatorKey,
+    initialOnboardingState: onboardingState,
+  );
+}

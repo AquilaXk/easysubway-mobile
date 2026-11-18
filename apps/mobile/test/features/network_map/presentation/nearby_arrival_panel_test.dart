@@ -1,0 +1,617 @@
+import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/nearby_arrival_panel.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_columns.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  Widget subject({
+    required NearbyArrivalPanelData data,
+    String? leftName = '건대입구',
+    String? rightName = '한양대',
+  }) {
+    return MaterialApp(
+      home: Scaffold(
+        body: NearbyArrivalPanel(
+          data: data,
+          leftName: leftName,
+          rightName: rightName,
+        ),
+      ),
+    );
+  }
+
+  testWidgets('fresh 도착 정보를 방면별 두 건으로 투영한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '건대입구 방면',
+              destination: '성수',
+              etaSeconds: 150,
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '건대입구 방면',
+              destination: '을지로입구',
+              etaSeconds: null,
+              message: '전역 출발',
+            ),
+            NearbyArrivalData(
+              direction: '건대입구 방면',
+              destination: '신도림',
+              etaSeconds: 600,
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '',
+              destination: '한양대',
+              etaSeconds: 1,
+              message: '',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('3분'), findsOneWidget);
+    expect(find.text('전역 출발'), findsOneWidget);
+    expect(find.text('곧 도착'), findsOneWidget);
+    expect(find.text('신도림'), findsNothing);
+    expect(
+      find.bySemanticsLabel('건대입구 방면, 성수행 3분, 을지로입구행 전역 출발'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('한양대 방면, 한양대행 곧 도착'), findsOneWidget);
+  });
+
+  testWidgets('도착 시간 표기 규칙과 남은 시간 빨간색 강조 검증', (tester) async {
+    final fixedNow = DateTime(2026, 9, 26, 20, 0); // 20:00
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NearbyArrivalPanel(
+            data: const NearbyArrivalPanelData(
+              status: NearbyArrivalPanelStatus.fresh,
+              arrivals: [
+                NearbyArrivalData(
+                  direction: '당고개 방면',
+                  destination: '당고개',
+                  etaSeconds: 45, // 1분 미만 -> 곧 도착
+                  message: '',
+                ),
+                NearbyArrivalData(
+                  direction: '당고개 방면',
+                  destination: '노원',
+                  etaSeconds: 300, // 5분
+                  message: '',
+                ),
+                NearbyArrivalData(
+                  direction: '오이도 방면',
+                  destination: '오이도',
+                  etaSeconds: 600, // 10분
+                  message: '',
+                ),
+                NearbyArrivalData(
+                  direction: '오이도 방면',
+                  destination: '안산',
+                  etaSeconds: 1140, // 19분
+                  message: '',
+                ),
+              ],
+            ),
+            leftName: '반월',
+            rightName: '한대앞',
+            now: fixedNow,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('곧 도착'), findsOneWidget);
+    expect(find.text('5분'), findsOneWidget);
+    expect(find.text('10분'), findsOneWidget);
+    expect(find.text('19분'), findsOneWidget);
+
+    // 상용 지하철 서비스처럼 남은 시간은 모두 빨강 강조다.
+    for (final eta in ['곧 도착', '5분', '19분']) {
+      final text = tester.widget<Text>(find.text(eta));
+      expect(text.style?.color, EasySubwayAccessibleColors.statusDestructive);
+      expect(text.style?.fontWeight, EasySubwayFontWeight.emphasis);
+    }
+  });
+
+  testWidgets('eta가 0이어도 상세 위치 메시지가 있으면 메시지를 우선 표시한다 (코레일 구간 방어)', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '건대입구 방면',
+              destination: '당고개',
+              etaSeconds: 0,
+              message: '[3]번째 전역',
+            ),
+            NearbyArrivalData(
+              direction: '한양대 방면',
+              destination: '오이도',
+              etaSeconds: 0,
+              message: '',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('[3]번째 전역'), findsOneWidget);
+    expect(find.text('곧 도착'), findsNothing);
+    expect(find.text('실시간 정보 없음'), findsOneWidget);
+  });
+
+  testWidgets(
+    'etaSeconds가 없거나 0 이하이고 message·positionMessage도 비어 있으면 곧 도착을 합성하지 않고 제외한다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '건대입구 방면',
+                destination: '성수',
+                etaSeconds: null,
+                message: '   ',
+              ),
+              NearbyArrivalData(
+                direction: '한양대 방면',
+                destination: '왕십리',
+                etaSeconds: -10,
+                message: '',
+                positionMessage: '  ',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('곧 도착'), findsNothing);
+      expect(find.text('성수행'), findsNothing);
+      expect(find.text('왕십리행'), findsNothing);
+      expect(find.text('실시간 정보 없음'), findsNWidgets(2));
+    },
+  );
+
+  testWidgets(
+    'message가 "곧 도착"이고 positionMessage가 있으면 positionMessage를 우선 표시한다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '건대입구 방면',
+                destination: '오이도',
+                etaSeconds: null,
+                message: '곧 도착',
+                positionMessage: '신길온천',
+              ),
+              NearbyArrivalData(
+                direction: '한양대 방면',
+                destination: '당고개',
+                etaSeconds: 0,
+                message: '곧 도착',
+                positionMessage: '고잔',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('신길온천'), findsOneWidget);
+      expect(find.text('고잔'), findsOneWidget);
+    },
+  );
+
+  testWidgets('stale 정보는 최근 도착 정보라고 알린다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.stale,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '건대입구 방면',
+              destination: '성수',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('최근 도착 정보'), findsOneWidget);
+  });
+
+  testWidgets('unavailable은 arrivals를 노출하지 않고 인접역 skeleton을 유지한다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.unavailable,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '건대입구 방면',
+              destination: '노출 금지',
+              etaSeconds: 60,
+              message: '',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const Key('networkMapNearbyArrivalSkeleton')),
+      findsOneWidget,
+    );
+    expect(find.text('노출 금지'), findsNothing);
+    expect(
+      find.bySemanticsLabel('건대입구 방면, 실시간 정보 없음 (시간표를 확인해 주세요.)'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('한양대 방면, 실시간 정보 없음 (시간표를 확인해 주세요.)'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('unavailable은 오류 문구 없이 방면마다 실시간 정보 없음을 노출한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.unavailable,
+        ),
+      ),
+    );
+
+    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsNothing);
+    expect(find.text('시간표 보기'), findsNothing);
+    expect(
+      find.byKey(const Key('networkMapNearbyArrivalSkeleton')),
+      findsOneWidget,
+    );
+    expect(find.text('실시간 정보 없음'), findsNWidgets(2));
+  });
+
+  testWidgets(
+    'unavailable에 방면 슬롯이 없을 때도 에러 문구 없이 NearbyDataUnavailable을 노출한다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.unavailable,
+          ),
+          leftName: null,
+          rightName: null,
+        ),
+      );
+
+      expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsNothing);
+      expect(find.text('시간표 보기'), findsNothing);
+      expect(find.byType(NearbyDataUnavailable), findsOneWidget);
+    },
+  );
+
+  testWidgets('loading은 정보 없음 대신 대시를 그리고 불러오는 중으로 읽는다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.loading,
+        ),
+      ),
+    );
+
+    expect(find.text('실시간 정보 없음'), findsNothing);
+    expect(find.text('(시간표를 확인해 주세요.)'), findsNothing);
+    expect(find.text('-'), findsNWidgets(2));
+    expect(find.bySemanticsLabel('건대입구 방면, 불러오는 중'), findsOneWidget);
+    expect(find.bySemanticsLabel('한양대 방면, 불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('loading에 방면 슬롯이 없으면 카드 없이 대시만 그리고 불러오는 중으로 읽는다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.loading,
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.byType(NearbyDataUnavailable), findsOneWidget);
+    expect(find.text('실시간 정보 없음'), findsNothing);
+    expect(find.text('-'), findsOneWidget);
+    expect(find.bySemanticsLabel('불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('공공 API rawDir(상행/하행) 판정을 최우선 적용하여 인접역 방면으로 정규화한다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '상행',
+              destination: '사당',
+              etaSeconds: 120,
+              message: '전역 도착',
+            ),
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '오이도',
+              etaSeconds: 240,
+              message: '전역 출발',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    expect(find.text('반월 방면'), findsOneWidget);
+    expect(find.text('한대앞 방면'), findsOneWidget);
+
+    expect(find.text('사당'), findsOneWidget);
+    expect(find.text('오이도'), findsOneWidget);
+  });
+
+  testWidgets('공공 API 하행 사당행 열차가 좌측(상행)으로 왜곡되지 않고 우측(하행) 열에 정상 매핑된다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '사당',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    // 하행 사당행 열차는 leftName(반월 방면)이 아닌 rightName(한대앞 방면)에 배정되어야 함
+    expect(find.text('한대앞 방면'), findsOneWidget);
+    expect(find.text('사당'), findsOneWidget);
+    expect(find.text('3분'), findsOneWidget);
+  });
+
+  testWidgets('다양한 방향 및 목적지 fallback, 시간 단위 ETA 표기 검증', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '사당행',
+              destination: '', // destination empty -> fallbackDestination
+              etaSeconds: 3660, // 1시간 1분
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '반월 방면',
+              destination: '진접행',
+              etaSeconds: 7200, // 2시간
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '한대앞 방면',
+              destination: '오이도행',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    expect(find.text('1시간 1분'), findsOneWidget);
+    expect(find.text('2시간'), findsOneWidget);
+  });
+
+  testWidgets('인접역이 없을 때 기본 방향 및 목적지 라벨로 폴백한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '상행',
+              destination: '청량리',
+              etaSeconds: 120,
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '',
+              destination: '수원행',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.text('상행 방면'), findsOneWidget);
+    expect(find.text('수원 방면'), findsOneWidget);
+  });
+
+  testWidgets('인접역이 없을 때 하행 방향 라벨로 폴백한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '오이도',
+              etaSeconds: 150,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.text('하행 방면'), findsOneWidget);
+  });
+
+  testWidgets('하행 도착 정보의 시맨틱 라벨이 인접역 방면명과 일치한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '오이도',
+              etaSeconds: 120,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    expect(find.text('한대앞 방면'), findsOneWidget);
+    expect(find.bySemanticsLabel('한대앞 방면, 오이도행 2분'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('반월 방면, 실시간 정보 없음 (시간표를 확인해 주세요.)'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('rawDir가 행으로 끝나는 경우 방면 중복 없이 정규화된다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '소요산행',
+              destination: '',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.text('소요산 방면'), findsOneWidget);
+    expect(find.text('소요산행 방면'), findsNothing);
+  });
+
+  testWidgets(
+    '공공 API의 destination이 비어있을 때 스크린리더 시맨틱 라벨도 direction 폴백 행선지를 누락 없이 포함한다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '사당 방면',
+                destination: '',
+                etaSeconds: 120,
+                message: '',
+              ),
+            ],
+          ),
+          leftName: null,
+          rightName: null,
+        ),
+      );
+
+      expect(find.bySemanticsLabel('사당 방면, 사당행 2분'), findsOneWidget);
+    },
+  );
+
+  testWidgets('destination에 이미 행이 포함되어 있어도 사당행행으로 중복되지 않고 사당행으로 단일 낭독된다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '상행',
+              destination: '사당행',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    expect(find.bySemanticsLabel('반월 방면, 사당행 3분'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('사당행행')), findsNothing);
+  });
+
+  testWidgets(
+    '공공 API의 destination이 비어있고 direction이 상행일 때 상행으로 온전하게 낭독 및 표출된다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '상행',
+                destination: '',
+                etaSeconds: 60,
+                message: '',
+              ),
+            ],
+          ),
+          leftName: '반월',
+          rightName: '한대앞',
+        ),
+      );
+
+      expect(find.text('상행'), findsOneWidget);
+      expect(find.bySemanticsLabel('반월 방면, 상행 1분'), findsOneWidget);
+    },
+  );
+}

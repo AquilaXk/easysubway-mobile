@@ -1,0 +1,997 @@
+import 'package:clock/clock.dart';
+import 'facility_status.dart';
+import 'station_line.dart';
+
+const _nearbyLocationMaxAge = Duration(minutes: 5);
+const _nearbyLocationMaxAccuracyMeters = 500.0;
+const _locationQualityUnavailableMessage =
+    '현재 위치 정확도 정보를 확인하지 못했어요. 출발역을 직접 선택해 주세요.';
+const _locationQualityStaleMessage =
+    '현재 위치가 오래되어 가까운 역을 정확히 찾기 어려워요. 출발역을 직접 선택해 주세요.';
+const _locationQualityCoarseMessage =
+    '현재 위치 정확도가 낮아 가까운 역을 정확히 찾기 어려워요. 출발역을 직접 선택해 주세요.';
+const _locationQualityMockedMessage =
+    '모의 위치는 가까운 역 찾기에 사용할 수 없어요. 출발역을 직접 선택해 주세요.';
+
+enum StationTimetableDayType {
+  weekday('평일'),
+  saturday('토요일'),
+  sundayHoliday('일요일·공휴일');
+
+  const StationTimetableDayType(this.label);
+
+  final String label;
+}
+
+class StationTimetable {
+  const StationTimetable({
+    required this.stationId,
+    required this.lineId,
+    required this.dayType,
+    required this.directions,
+    this.isOfflineFallback = false,
+    this.serviceDate,
+  });
+
+  final String stationId;
+  final String lineId;
+  final StationTimetableDayType dayType;
+  final List<StationTimetableDirection> directions;
+  final bool isOfflineFallback;
+
+  /// 서버가 이 시간표를 판정한 서비스일(`YYYY-MM-DD`). 서버가 날짜로 답한
+  /// 시간표에만 있다.
+  final String? serviceDate;
+
+  bool get isAvailable => directions.isNotEmpty;
+
+  StationTimetable copyWith({
+    String? stationId,
+    String? lineId,
+    StationTimetableDayType? dayType,
+    List<StationTimetableDirection>? directions,
+    bool? isOfflineFallback,
+  }) {
+    return StationTimetable(
+      stationId: stationId ?? this.stationId,
+      lineId: lineId ?? this.lineId,
+      dayType: dayType ?? this.dayType,
+      directions: directions ?? this.directions,
+      isOfflineFallback: isOfflineFallback ?? this.isOfflineFallback,
+      serviceDate: serviceDate,
+    );
+  }
+}
+
+class StationTimetableDirection {
+  const StationTimetableDirection({
+    required this.name,
+    required this.departures,
+  });
+
+  final String name;
+  final List<StationTimetableDeparture> departures;
+
+  StationTimetableDeparture get firstDeparture => departures.first;
+
+  StationTimetableDeparture get lastDeparture => departures.last;
+}
+
+class StationTimetableDeparture {
+  const StationTimetableDeparture({
+    required this.directionName,
+    required this.seconds,
+    this.departureAt,
+    this.destination = '',
+    this.servicePattern = 'LOCAL',
+    this.serviceClass = 'SUBWAY',
+  });
+
+  final String directionName;
+  final int seconds;
+  final DateTime? departureAt;
+  final String destination;
+
+  /// 운행종별(예: `LOCAL`·`EXPRESS`). 선택 컨트롤이 아니라 실제 운행 정보다.
+  final String servicePattern;
+
+  /// 운행 클래스(예: `SUBWAY`).
+  final String serviceClass;
+
+  /// 지하철 급행 운행 여부. 이 값이 참일 때만 `급행` 배지를 노출한다.
+  bool get isExpress => serviceClass == 'SUBWAY' && servicePattern == 'EXPRESS';
+
+  String get timeLabel {
+    return _clockLabel(seconds);
+  }
+
+  /// 열차 종착역 행선지 라벨 (예: '사당행', '진접행').
+  String get destinationLabel {
+    final trimmed = destination.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    return trimmed.endsWith('행') ? trimmed : '$trimmed행';
+  }
+
+  String get semanticLabel {
+    final normalized = seconds % Duration.secondsPerDay;
+    final hour = normalized ~/ Duration.secondsPerHour;
+    final minute =
+        (normalized % Duration.secondsPerHour) ~/ Duration.secondsPerMinute;
+    final expressLabel = isExpress ? '급행, ' : '';
+    final dest = destinationLabel.isNotEmpty ? '$destinationLabel, ' : '';
+    return '$directionName, $dest$expressLabel'
+        '${hour.toString().padLeft(2, '0')}시 '
+        '${minute.toString().padLeft(2, '0')}분 출발';
+  }
+}
+
+String _clockLabel(int seconds) {
+  final normalized = seconds % Duration.secondsPerDay;
+  final hour = normalized ~/ Duration.secondsPerHour;
+  final minute =
+      (normalized % Duration.secondsPerHour) ~/ Duration.secondsPerMinute;
+  return '${hour.toString().padLeft(2, '0')}:'
+      '${minute.toString().padLeft(2, '0')}';
+}
+
+enum LocationPermissionPrecision { precise, approximate, unknown }
+
+enum CurrentLocationQualityStatus {
+  freshPrecise,
+  unavailable,
+  stale,
+  coarse,
+  mocked,
+}
+
+class CurrentLocation {
+  const CurrentLocation({
+    required this.latitude,
+    required this.longitude,
+    this.accuracyMeters,
+    this.measuredAt,
+    this.provider = 'unknown',
+    this.isMocked = false,
+    this.permissionPrecision = LocationPermissionPrecision.unknown,
+  });
+
+  final double latitude;
+  final double longitude;
+  final double? accuracyMeters;
+  final DateTime? measuredAt;
+  final String provider;
+  final bool isMocked;
+  final LocationPermissionPrecision permissionPrecision;
+
+  CurrentLocationQualityStatus qualityStatus({
+    DateTime? now,
+    Duration maxAge = _nearbyLocationMaxAge,
+    double maxAccuracyMeters = _nearbyLocationMaxAccuracyMeters,
+  }) {
+    if (isMocked) {
+      return CurrentLocationQualityStatus.mocked;
+    }
+    final measuredAt = this.measuredAt;
+    final accuracyMeters = this.accuracyMeters;
+    if (measuredAt == null || accuracyMeters == null) {
+      return CurrentLocationQualityStatus.unavailable;
+    }
+    final age = (now ?? clock.now()).difference(measuredAt);
+    if (age > maxAge || age.isNegative) {
+      return CurrentLocationQualityStatus.stale;
+    }
+    if (permissionPrecision == LocationPermissionPrecision.approximate ||
+        accuracyMeters > maxAccuracyMeters) {
+      return CurrentLocationQualityStatus.coarse;
+    }
+    return CurrentLocationQualityStatus.freshPrecise;
+  }
+
+  bool canUseForNearbySearch({DateTime? now}) {
+    return qualityStatus(now: now) == CurrentLocationQualityStatus.freshPrecise;
+  }
+
+  String? nearbySearchBlockedMessage({DateTime? now}) {
+    return switch (qualityStatus(now: now)) {
+      CurrentLocationQualityStatus.freshPrecise => null,
+      CurrentLocationQualityStatus.unavailable =>
+        _locationQualityUnavailableMessage,
+      CurrentLocationQualityStatus.stale => _locationQualityStaleMessage,
+      CurrentLocationQualityStatus.coarse => _locationQualityCoarseMessage,
+      CurrentLocationQualityStatus.mocked => _locationQualityMockedMessage,
+    };
+  }
+}
+
+class FavoriteStation {
+  const FavoriteStation({
+    required this.userId,
+    required this.stationId,
+    this.lineId = '',
+    required this.nameKo,
+    required this.nameEn,
+    required this.region,
+    required this.dataQualityLevel,
+    this.dataSourceType = '',
+    required this.lastVerifiedAt,
+    required this.lines,
+    required this.addedAt,
+  });
+
+  final String userId;
+  final String stationId;
+
+  /// 즐겨찾기한 호선 id. 빈 문자열은 레거시(역 전체) 즐겨찾기.
+  final String lineId;
+  final String nameKo;
+  final String nameEn;
+  final String region;
+  final String dataQualityLevel;
+  final String dataSourceType;
+  final String lastVerifiedAt;
+  final List<StationSearchLine> lines;
+  final String addedAt;
+
+  String get dataQualityLabel => _dataQualityLabel(dataQualityLevel);
+
+  String get dataSourceLabel => _dataSourceLabel(dataSourceType);
+
+  String get lineLabel {
+    if (lines.isEmpty) {
+      return '노선 정보 없음';
+    }
+    return lines.map((line) => line.name).join(', ');
+  }
+
+  String get semanticLabel {
+    return '즐겨찾기 역, $nameKo, $lineLabel, $region';
+  }
+}
+
+/// 로컬 즐겨찾기 키(stationId + lineId). lineId 빈 값은 역 전체(레거시).
+String favoriteStationLineKey(String stationId, [String? lineId]) =>
+    '$stationId\u001f${lineId ?? ''}';
+
+class StationSearchResult {
+  const StationSearchResult({
+    required this.id,
+    required this.nameKo,
+    required this.nameEn,
+    this.nameSub = '',
+    required this.region,
+    required this.dataQualityLevel,
+    this.dataSourceType = '',
+    required this.lastVerifiedAt,
+    this.distanceMeters,
+    required this.lines,
+  });
+
+  factory StationSearchResult.fromJson(Map<String, Object?> json) {
+    final rawLines = json['lines'];
+    if (rawLines is! List<Object?>) {
+      throw const FormatException('Invalid station lines payload');
+    }
+
+    return StationSearchResult(
+      id: _requiredString(json, 'id'),
+      nameKo: _requiredString(json, 'nameKo'),
+      nameEn: _requiredString(json, 'nameEn'),
+      nameSub: _stringOrEmpty(json, 'nameSub'),
+      region: _requiredString(json, 'region'),
+      dataQualityLevel: _requiredString(json, 'dataQualityLevel'),
+      dataSourceType: _stringOrEmpty(json, 'dataSourceType'),
+      lastVerifiedAt: _requiredString(json, 'lastVerifiedAt'),
+      distanceMeters: _optionalInt(json, 'distanceMeters'),
+      lines: rawLines
+          .map((item) {
+            if (item is! Map<String, Object?>) {
+              throw const FormatException('Invalid station line payload');
+            }
+            return StationSearchLine.fromJson(item);
+          })
+          .toList(growable: false),
+    );
+  }
+
+  final String id;
+  final String nameKo;
+  final String nameEn;
+  final String nameSub;
+  final String region;
+  final String dataQualityLevel;
+  final String dataSourceType;
+  final String lastVerifiedAt;
+  final int? distanceMeters;
+  final List<StationSearchLine> lines;
+
+  String get dataQualityLabel {
+    return _dataQualityLabel(dataQualityLevel);
+  }
+
+  String get dataSourceLabel => _dataSourceLabel(dataSourceType);
+
+  String get lineLabel {
+    if (lines.isEmpty) {
+      return '노선 정보 없음';
+    }
+    return lines.map((line) => line.name).join(', ');
+  }
+
+  String get distanceLabel {
+    final distance = distanceMeters;
+    if (distance == null) {
+      return '';
+    }
+    if (distance < 1000) {
+      return '현재 위치에서 ${distance}m';
+    }
+    return '현재 위치에서 ${(distance / 1000).toStringAsFixed(1)}km';
+  }
+
+  String get semanticLabel {
+    final distance = distanceLabel;
+    if (distance.isEmpty) {
+      return '$nameKo, $lineLabel, $region';
+    }
+    return '$nameKo, $distance, $lineLabel, $region';
+  }
+}
+
+/// 역 검색 지역 필터: DB의 `부산권` 등과 UI 표시명 `부산`을 같은 권역으로 본다.
+bool stationBelongsToRegion(String stationRegion, String filterRegion) {
+  return normalizeStationRegion(stationRegion) ==
+      normalizeStationRegion(filterRegion);
+}
+
+String normalizeStationRegion(String region) {
+  final trimmed = region.trim();
+  return switch (trimmed) {
+    '부산권' => '부산',
+    '광주권' => '광주',
+    '대구권' => '대구',
+    '대전권' => '대전',
+    _ => trimmed,
+  };
+}
+
+class StationContact {
+  const StationContact({
+    required this.lineId,
+    this.lineName = '',
+    required this.phone,
+  });
+
+  factory StationContact.fromJson(Map<String, Object?> json) {
+    return StationContact(
+      lineId: _requiredString(json, 'lineId'),
+      lineName: _stringOrEmpty(json, 'lineName'),
+      phone: _requiredString(json, 'phone'),
+    );
+  }
+
+  static final _hyphenPattern = RegExp(r'-+');
+  static final _whitespacePattern = RegExp(r'\s+');
+
+  final String lineId;
+  final String lineName;
+  final String phone;
+
+  String get spokenPhone => phone
+      .trim()
+      .replaceAll(_hyphenPattern, ' ')
+      .replaceAll(_whitespacePattern, ' ');
+}
+
+class StationDetail {
+  const StationDetail({
+    required this.id,
+    required this.nameKo,
+    required this.nameEn,
+    this.nameSub = '',
+    required this.region,
+    this.latitude,
+    this.longitude,
+    required this.dataQualityLevel,
+    this.dataSourceType = '',
+    required this.lastVerifiedAt,
+    required this.lines,
+    this.confirmedAbsentFacilityTypes = const {},
+    this.contacts = const [],
+  });
+
+  factory StationDetail.fromJson(Map<String, Object?> json) {
+    final rawLines = json['lines'];
+    if (rawLines is! List<Object?>) {
+      throw const FormatException('Invalid station detail lines payload');
+    }
+    final rawAbsent = json['confirmedAbsentFacilityTypes'];
+    if (rawAbsent != null && rawAbsent is! List<Object?>) {
+      throw const FormatException(
+        'Invalid station detail confirmedAbsentFacilityTypes payload',
+      );
+    }
+    final rawContacts = json['contacts'];
+    if (rawContacts != null && rawContacts is! List<Object?>) {
+      throw const FormatException('Invalid station detail contacts payload');
+    }
+
+    final absentTypes = <String>{};
+    if (rawAbsent is List<Object?>) {
+      for (final item in rawAbsent) {
+        if (item is! String || item.trim().isEmpty) {
+          throw const FormatException(
+            'Invalid station detail confirmedAbsentFacilityType item',
+          );
+        }
+        absentTypes.add(item.trim().toUpperCase());
+      }
+    }
+
+    final contacts = <StationContact>[];
+    if (rawContacts is List<Object?>) {
+      for (final item in rawContacts) {
+        if (item is! Map<String, Object?>) {
+          throw const FormatException('Invalid station detail contact payload');
+        }
+        contacts.add(StationContact.fromJson(item));
+      }
+    }
+
+    return StationDetail(
+      id: _requiredString(json, 'id'),
+      nameKo: _requiredString(json, 'nameKo'),
+      nameEn: _requiredString(json, 'nameEn'),
+      nameSub: _stringOrEmpty(json, 'nameSub'),
+      region: _requiredString(json, 'region'),
+      latitude: _optionalDouble(json, 'latitude'),
+      longitude: _optionalDouble(json, 'longitude'),
+      dataQualityLevel: _requiredString(json, 'dataQualityLevel'),
+      dataSourceType: _stringOrEmpty(json, 'dataSourceType'),
+      lastVerifiedAt: _requiredString(json, 'lastVerifiedAt'),
+      lines: rawLines
+          .map((item) {
+            if (item is! Map<String, Object?>) {
+              throw const FormatException(
+                'Invalid station detail line payload',
+              );
+            }
+            return StationSearchLine.fromJson(item);
+          })
+          .toList(growable: false),
+      confirmedAbsentFacilityTypes: absentTypes.isEmpty
+          ? const {}
+          : Set<String>.unmodifiable(absentTypes),
+      contacts: contacts.isEmpty
+          ? const []
+          : List<StationContact>.unmodifiable(contacts),
+    );
+  }
+
+  final String id;
+  final String nameKo;
+  final String nameEn;
+  final String nameSub;
+  final String region;
+  final double? latitude;
+  final double? longitude;
+  final String dataQualityLevel;
+  final String dataSourceType;
+  final String lastVerifiedAt;
+  final List<StationSearchLine> lines;
+
+  /// 원천이 이 역의 모든 노선에서 없다고 확인한 시설 유형(`ELEVATOR` 등).
+  /// 시설 행도 없고 여기에도 없는 유형은 모름이므로 없음으로 보이지 않는다.
+  final Set<String> confirmedAbsentFacilityTypes;
+  final List<StationContact> contacts;
+
+  String get dataQualityLabel => _dataQualityLabel(dataQualityLevel);
+
+  String get dataSourceLabel => _dataSourceLabel(dataSourceType);
+
+  String get lineLabel {
+    if (lines.isEmpty) {
+      return '노선 정보 없음';
+    }
+    return lines.map((line) => line.name).join(', ');
+  }
+
+  String get semanticLabel {
+    return '$nameKo역 자세한 안내, $lineLabel, '
+        '마지막 확인 ${stationVerifiedRelativeLabel(lastVerifiedAt)}';
+  }
+}
+
+enum StairOnlyPathStatus { present, absent, unknown }
+
+class StationExitInfo {
+  const StationExitInfo({
+    required this.id,
+    required this.stationId,
+    required this.exitNumber,
+    required this.name,
+    this.description = '',
+    this.latitude,
+    this.longitude,
+    required this.hasElevatorConnection,
+    this.hasStairOnlyPath = StairOnlyPathStatus.unknown,
+    required this.dataConfidence,
+    this.dataSourceType = '',
+    this.fieldValidationStatus = 'UNKNOWN',
+    this.lastVerifiedAt = '',
+    this.nearbyDoorHint,
+  });
+
+  factory StationExitInfo.fromJson(Map<String, Object?> json) {
+    return StationExitInfo(
+      id: _requiredString(json, 'id'),
+      stationId: _requiredString(json, 'stationId'),
+      exitNumber: _requiredString(json, 'exitNumber'),
+      name: _requiredString(json, 'name'),
+      description: _stringOrEmpty(json, 'description'),
+      latitude: _optionalDouble(json, 'latitude'),
+      longitude: _optionalDouble(json, 'longitude'),
+      hasElevatorConnection: _requiredBool(json, 'hasElevatorConnection'),
+      hasStairOnlyPath: _stairOnlyPathStatusFromJson(json, 'hasStairOnlyPath'),
+      dataConfidence: _requiredString(json, 'dataConfidence'),
+      dataSourceType: _stringOrEmpty(json, 'dataSourceType'),
+      fieldValidationStatus: _stringOrDefault(
+        json,
+        'fieldValidationStatus',
+        'UNKNOWN',
+      ),
+      lastVerifiedAt: _stringOrEmpty(json, 'lastVerifiedAt'),
+      nearbyDoorHint:
+          _optionalString(json, 'nearbyDoorHint') ??
+          _optionalString(json, 'fastExitDoors'),
+    );
+  }
+
+  final String id;
+  final String stationId;
+  final String exitNumber;
+  final String name;
+  final String description;
+  final double? latitude;
+  final double? longitude;
+  final bool hasElevatorConnection;
+  final StairOnlyPathStatus hasStairOnlyPath;
+  final String dataConfidence;
+  final String dataSourceType;
+  final String fieldValidationStatus;
+  final String lastVerifiedAt;
+  final String? nearbyDoorHint;
+
+  bool get hasNearbyDoorHint =>
+      nearbyDoorHint != null && nearbyDoorHint!.trim().isNotEmpty;
+
+  bool get hasCoordinate => latitude != null && longitude != null;
+
+  String? get stairPathLabel {
+    return switch (hasStairOnlyPath) {
+      StairOnlyPathStatus.present => '계단만 있는 길 있음',
+      StairOnlyPathStatus.absent => '계단 없는 이동 가능',
+      StairOnlyPathStatus.unknown => null,
+    };
+  }
+
+  String get confidenceLabel => _dataConfidenceLabel(dataConfidence);
+
+  String get dataSourceLabel => _dataSourceLabel(dataSourceType);
+
+  String get fieldValidationLabel =>
+      _fieldValidationLabel(fieldValidationStatus);
+
+  String get verificationStatusLabel =>
+      _fieldVerificationStatusLabel(fieldValidationStatus);
+
+  String get semanticLabel {
+    final parts = <String>[name];
+    final desc = description.trim();
+    if (desc.isNotEmpty) {
+      parts.add(desc);
+    }
+    final stairLabel = stairPathLabel;
+    if (stairLabel != null) {
+      parts.add(stairLabel);
+    }
+    if (hasNearbyDoorHint) {
+      parts.add('출구와 가까운 하차문 ${nearbyDoorHint!.trim()}');
+    }
+    final verifiedAt = lastVerifiedAt.trim();
+    if (verifiedAt.isNotEmpty) {
+      parts.add('최근 확인 ${stationVerifiedRelativeLabel(verifiedAt)}');
+    }
+    return parts.join(', ');
+  }
+}
+
+class StationFacilityInfo {
+  const StationFacilityInfo({
+    required this.id,
+    required this.stationId,
+    required this.exitId,
+    required this.type,
+    required this.name,
+    required this.floorFrom,
+    required this.floorTo,
+    this.latitude,
+    this.longitude,
+    required this.description,
+    required this.status,
+    required this.dataConfidence,
+    this.dataSourceType = '',
+    required this.lastUpdatedAt,
+    this.fieldValidationStatus = 'UNKNOWN',
+  });
+
+  factory StationFacilityInfo.fromJson(Map<String, Object?> json) {
+    return StationFacilityInfo(
+      id: _requiredString(json, 'id'),
+      stationId: _requiredString(json, 'stationId'),
+      exitId: _stringOrEmpty(json, 'exitId'),
+      type: _requiredString(json, 'type'),
+      name: _requiredString(json, 'name'),
+      floorFrom: _stringOrEmpty(json, 'floorFrom'),
+      floorTo: _stringOrEmpty(json, 'floorTo'),
+      latitude: _optionalDouble(json, 'latitude'),
+      longitude: _optionalDouble(json, 'longitude'),
+      description: _stringOrEmpty(json, 'description'),
+      status: _requiredString(json, 'status'),
+      dataConfidence: _requiredString(json, 'dataConfidence'),
+      dataSourceType: _stringOrEmpty(json, 'dataSourceType'),
+      lastUpdatedAt: _requiredString(json, 'lastUpdatedAt'),
+      fieldValidationStatus: _stringOrDefault(
+        json,
+        'fieldValidationStatus',
+        'UNKNOWN',
+      ),
+    );
+  }
+
+  /// 원천 응답이 미설치(`NOT_INSTALLED`)로 표기한 시설 행인지 판별한다.
+  static bool isNotInstalledPayload(Map<String, Object?> json) {
+    final installationStatus = _stringOrEmpty(
+      json,
+      'installationStatus',
+    ).toUpperCase();
+    if (installationStatus == 'NOT_INSTALLED') {
+      return true;
+    }
+    final status = _stringOrEmpty(json, 'status').toUpperCase();
+    return status == 'NOT_INSTALLED';
+  }
+
+  final String id;
+  final String stationId;
+  final String exitId;
+  final String type;
+  final String name;
+  final String floorFrom;
+  final String floorTo;
+  final double? latitude;
+  final double? longitude;
+  final String description;
+  final String status;
+  final String dataConfidence;
+  final String dataSourceType;
+  final String lastUpdatedAt;
+  final String fieldValidationStatus;
+
+  String get typeLabel {
+    return switch (type) {
+      'ELEVATOR' => '엘리베이터',
+      'ESCALATOR' => '에스컬레이터',
+      'WHEELCHAIR_LIFT' => '휠체어 리프트',
+      'RAMP' => '경사로',
+      'ACCESSIBLE_TOILET' => '장애인 화장실',
+      'TOILET' => '화장실',
+      'NURSING_ROOM' => '수유실',
+      'CUSTOMER_CENTER' => '고객센터',
+      'STATION_OFFICE' => '역무실',
+      _ => '시설',
+    };
+  }
+
+  String get statusLabel {
+    return switch (status) {
+      'NORMAL' => '정상',
+      'BROKEN' => '고장',
+      'UNDER_CONSTRUCTION' => '공사 중',
+      'CONSTRUCTION' => '공사 중',
+      'CLOSED' => '폐쇄',
+      'UNKNOWN' => '정상 운행',
+      'USER_REPORTED' => '제보됨',
+      'ADMIN_VERIFIED' => '확인 완료',
+      'NEEDS_REPORT' => '현장 확인',
+      'NEEDS_CHECK' => '정상 운행',
+      _ => '정상 운행',
+    };
+  }
+
+  FacilityStatusPresentation get statusPresentation =>
+      facilityStatusPresentation(status);
+
+  String get severityLabel => statusPresentation.severityLabel;
+
+  String get statusTitle => statusPresentation.statusTitle;
+
+  String get nextActionLabel => statusPresentation.nextActionLabel;
+
+  String get nextActionDescription => statusPresentation.nextActionDescription;
+
+  bool get needsAttention => statusPresentation.needsAttention;
+
+  int get statusPriority => statusPresentation.priority;
+
+  String get confidenceLabel => _dataConfidenceLabel(dataConfidence);
+
+  String get dataSourceLabel => _dataSourceLabel(dataSourceType);
+
+  String get fieldValidationLabel =>
+      _fieldValidationLabel(fieldValidationStatus);
+
+  String get verificationStatusLabel =>
+      _fieldVerificationStatusLabel(fieldValidationStatus);
+
+  String get locationLabel {
+    if (description.trim().isNotEmpty) {
+      final descriptionLabel = _facilityUserLocationLabel(description);
+      if (descriptionLabel.isNotEmpty) {
+        return descriptionLabel;
+      }
+    }
+    if (floorFrom.trim().isNotEmpty && floorTo.trim().isNotEmpty) {
+      return '$floorFrom-$floorTo';
+    }
+    return '역내 위치 안내 참조';
+  }
+
+  String get updatedLabel =>
+      '최근 확인 ${stationVerifiedRelativeLabel(lastUpdatedAt)}';
+
+  /// 사용자 친화적 한국어 표준 시설 명칭.
+  /// (예: '1번 출구 엘리베이터', '승강기 2호기 (지상 ↔ 대합실)', '한대앞 방면 승강기 2호기')
+  String get displayName => formatFacilityDisplayName(
+    name: name,
+    type: type,
+    description: description,
+    floorFrom: floorFrom,
+    floorTo: floorTo,
+  );
+
+  String get semanticLabel {
+    return '$displayName, $typeLabel, $statusTitle, $locationLabel, $updatedLabel, $nextActionLabel';
+  }
+}
+
+class SubwayLineOption {
+  const SubwayLineOption({
+    required this.id,
+    required this.name,
+    required this.color,
+    required this.region,
+    required this.lineCode,
+    required this.active,
+  });
+
+  factory SubwayLineOption.fromJson(Map<String, Object?> json) {
+    return SubwayLineOption(
+      id: _requiredString(json, 'id'),
+      name: _requiredString(json, 'name'),
+      color: _requiredString(json, 'color'),
+      region: _requiredString(json, 'region'),
+      lineCode: _stringOrEmpty(json, 'lineCode'),
+      active: _requiredBool(json, 'active'),
+    );
+  }
+
+  final String id;
+  final String name;
+  final String color;
+  final String region;
+  final String lineCode;
+  final bool active;
+
+  String get semanticLabel => name;
+
+  /// 지역 접두어를 뗀 짧은 노선명(지역이 이미 상단에 표시될 때 사용).
+  String get shortName {
+    final prefix = '$region ';
+    if (region.isNotEmpty && name.startsWith(prefix)) {
+      final stripped = name.substring(prefix.length).trim();
+      if (stripped.isNotEmpty) {
+        return stripped;
+      }
+    }
+    return name;
+  }
+
+  StationSearchLine get badgeLine => StationSearchLine(
+    id: id,
+    name: name,
+    color: color,
+    stationCode: lineCode,
+  );
+}
+
+String _requiredString(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is String && value.trim().isNotEmpty) {
+    return value;
+  }
+  throw FormatException('Missing required station field: $key');
+}
+
+String _stringOrEmpty(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is String) {
+    return value;
+  }
+  return '';
+}
+
+String? _optionalString(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is String && value.trim().isNotEmpty) {
+    return value.trim();
+  }
+  return null;
+}
+
+String _stringOrDefault(
+  Map<String, Object?> json,
+  String key,
+  String defaultValue,
+) {
+  final value = json[key];
+  if (value is String && value.trim().isNotEmpty) {
+    return value;
+  }
+  return defaultValue;
+}
+
+bool _requiredBool(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is bool) {
+    return value;
+  }
+  throw FormatException('Missing required station boolean field: $key');
+}
+
+StairOnlyPathStatus _stairOnlyPathStatusFromJson(
+  Map<String, Object?> json,
+  String key,
+) {
+  // 근거 없는 bool·'true'/'false'는 검증된 계단 정보로 보지 않는다(Fallback 금지).
+  // 확인된 상태를 뜻하는 'present'/'absent'만 받아들이고 나머지는 unknown이다.
+  final value = json[key];
+  if (value is String) {
+    switch (value.trim().toLowerCase()) {
+      case 'present':
+        return StairOnlyPathStatus.present;
+      case 'absent':
+        return StairOnlyPathStatus.absent;
+    }
+  }
+  return StairOnlyPathStatus.unknown;
+}
+
+double? _optionalDouble(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value == null) {
+    return null;
+  }
+  if (value is num) {
+    return value.toDouble();
+  }
+  if (value is String && value.trim().isNotEmpty) {
+    return double.tryParse(value);
+  }
+  return null;
+}
+
+int? _optionalInt(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value == null) {
+    return null;
+  }
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    if (value % 1 == 0) {
+      return value.toInt();
+    }
+    throw FormatException('Invalid integer station field: $key');
+  }
+  if (value is String && value.trim().isNotEmpty) {
+    final parsed = int.tryParse(value);
+    if (parsed == null) {
+      throw FormatException('Invalid integer station field: $key');
+    }
+    return parsed;
+  }
+  return null;
+}
+
+// #1578 전역 원칙: 내부 데이터 품질·검증 상태 라벨은 사용자에게 노출하지 않는다.
+// 소스(라벨 함수)를 중립화해 모든 화면이 이를 상속한다. 화면 구조 정리(빈
+// 위젯·조건 제거)는 #1566/#1567/#1569에서 다룬다. 정상·확인됨·준비 중은 무표시,
+// 시점 정보는 별도의 "최근 확인 …" 표현으로만 제공한다.
+String _dataQualityLabel(String dataQualityLevel) => '';
+
+String _dataConfidenceLabel(String dataConfidence) => '';
+
+String _fieldValidationLabel(String fieldValidationStatus) => '';
+
+String _fieldVerificationStatusLabel(String fieldValidationStatus) => '';
+
+String _facilityUserLocationLabel(String description) {
+  var label = description.trim();
+  // 정적 데이터팩의 개발자·감사용 로그성 문자열 정제(미설치(count=0) 등)
+  if (label.contains('미설치')) {
+    return '미설치';
+  }
+  // 공공데이터 API/운영기관 기준 n대 설치 정보 정제
+  final countMatch = RegExp(r'(\d+대\s*설치)').firstMatch(label);
+  if (countMatch != null) {
+    return countMatch.group(1)!;
+  }
+  label = label.replaceAll(RegExp(r'\(?\s*count\s*=\s*\d+\s*\)?'), '');
+  label = label.replaceAll(RegExp(r'현장\s*(검[증]됨|검[증] 전|재확인\s*필요)'), '');
+  label = label.replaceAll(RegExp(r'관리자\s*검[수]'), '');
+  label = label.replaceAll(RegExp(r'\s+'), ' ').trim();
+  return label;
+}
+
+String _dataSourceLabel(String dataSourceType) {
+  return switch (dataSourceType) {
+    'OFFICIAL_API' => '공식 안내',
+    'OFFICIAL_FILE' => '공식 안내',
+    'OPERATOR_PAGE' => '운영기관 안내',
+    'USER_REPORT' => '이용자 제보',
+    'ADMIN_VERIFIED' => '확인된 안내',
+    'PARTNER_FEED' => '연계 안내',
+    _ => '',
+  };
+}
+
+/// 확인 시점('YYYY-MM-DD' 또는 ISO datetime)을 오늘 기준 상대 표현으로 바꾼다.
+/// '오늘 / 어제 / n일 전 / n주 전'으로 최신성을 한눈에 보여주고, 파싱 불가·미래·
+/// 4주 이상 과거는 원문 날짜를 그대로 둬 오래된 안내는 정확한 날짜로 드러낸다.
+String stationVerifiedRelativeLabel(String rawVerifiedAt, {DateTime? now}) {
+  final raw = rawVerifiedAt.trim();
+  if (raw.isEmpty) {
+    return raw;
+  }
+  final parsed = DateTime.tryParse(raw);
+  if (parsed == null) {
+    return raw;
+  }
+  final effectiveNow = now ?? clock.now();
+  final today = DateTime(
+    effectiveNow.year,
+    effectiveNow.month,
+    effectiveNow.day,
+  );
+  final verifiedDay = DateTime(parsed.year, parsed.month, parsed.day);
+  final days = today.difference(verifiedDay).inDays;
+  if (days < 0) {
+    return raw;
+  }
+  if (days == 0) {
+    return '오늘';
+  }
+  if (days == 1) {
+    return '어제';
+  }
+  if (days < 7) {
+    return '$days일 전';
+  }
+  if (days < 28) {
+    return '${days ~/ 7}주 전';
+  }
+  return raw;
+}

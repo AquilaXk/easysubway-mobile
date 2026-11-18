@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "issue": 437,
+  "capturedAt": "2026-10-04",
+  "platform": "Android emulator easysubway_ps16k_api36 (Android 16 API 36), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "2호선 강남 서버 시간표가 다음 정차역 기준 \"역삼 방면 / 교대 방면\" 두 묶음으로 나온다(두 묶음의 종착이 같아도 섞이지 않는다)",
+    "출발마다 행선지가 terminalStationId의 카탈로그 이름(성수행·신도림행)으로 나온다",
+    "directionName이 null인 응답을 해석하고, 방면 문자열을 잘라 행선지를 만들지 않는다",
+    "TalkBack이 읽는 접근성 라벨이 \"역삼 방면, 성수행, 05시 30분 출발\" 형태다",
+    "리뷰 F1: 토요일 탭을 누르면 날짜로 조회하고, 서버가 공휴일 시간표로 답하면 공휴일 탭과 \"10월 10일(토)은 공휴일 시간표로 운행해요\"를 보인다",
+    "리뷰 F2: 서버가 503으로 답하면 로컬 시간표나 네트워크 안내 대신 \"지금은 시간표를 불러올 수 없어요 / 잠시 후 다시 시도해 주세요\"와 다시 시도 버튼을 보인다"
+  ],
+  "files": [
+    {
+      "path": "gangnam-line2-next-station.png",
+      "sha256": "a851085f7df257d208eb164cc96406bd14926c96f050ff1899a7596c601ab113",
+      "description": "강남역 2호선 시간표 화면: 역삼 방면/교대 방면, 출발별 성수행·신도림행"
+    },
+    {
+      "path": "saturday-holiday-note.png",
+      "sha256": "a1349fd76a961d4db03dcfa068c3d7a437f9befb88af9f6483e6a60f2ce34004",
+      "description": "토요일 탭: 서버 판정(공휴일)과 운행 안내 문구"
+    },
+    {
+      "path": "server-error-state.png",
+      "sha256": "00b0819e991366933897de2bc5da6d4296bf2597c515cf37bdb748e8dfb00af1",
+      "description": "서버 503 응답: 명시적 서버 상태 안내"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "3455a7b084247df248fcfa0ab82b604dbde6efe5c673180212714e5edd3d2017",
+      "description": "uiautomator dump 접근성 라벨(3개 화면)"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 StationTimetableScreen에 실제 ServerStationTimetableRepository와 실제 JourneyApiRepository를 넣고, 전송 계층(ApiClient.postJson)만 backend #479 형태 응답(nextStationId 역삼/교대, directionName null, terminalStationId 성수/신도림)을 내도록 바꿨다. 역 이름은 테스트용 카탈로그 표로 붙였다. flutter test -d emulator-5554로 실행하고 adb exec-out screencap, adb shell uiautomator dump로 수집했다. lib/ 테스트 전용 hook 없음. 시각·종착 구성은 화면 확인용이며 실제 시간표가 아니다.",
+  "notes": "backend #479가 배포되지 않아 운영 응답으로는 찍을 수 없다(현재 운영 역 시간표는 503 TIMETABLE_STALE). TalkBack 실기 낭독은 하지 않았고 접근성 트리로 대체했다.",
+  "captureMethodReview": "리뷰 F1·F2 화면은 임시 integration_test(커밋 안 함)에서 StationTimetableScreen에 저장소 경계만 대신하는 가짜 저장소(토요일 요청에 공휴일 시간표, 또는 503)를 넣어 같은 에뮬레이터로 찍었다."
+}

@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "issue": 438,
+  "capturedAt": "2026-10-04",
+  "platform": "Android emulator easysubway_ps16k_api36 (Android 16 API 36, google_apis 이미지, Play Store 비활성), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "수정 전 앱은 serviceDayCutoff가 있는 backend main 응답을 JourneyProtocolFailure(FormatException: unexpected JSON keys)로 거부하고 경로 검색 실패 화면을 보인다",
+    "수정 후 앱은 같은 응답을 해석해 경로 후보를 보인다",
+    "수정 후 앱은 backend #471 응답의 대표 묶음으로 탭 라벨(최단시간·계단회피, 최소환승)을 만들고 접근성 라벨에도 같은 순서로 나온다",
+    "운영 API 실검색은 debug 빌드에서 Play Integrity 세션 발급 단계에서 막힌다(에뮬레이터에 Play Integrity 서비스 없음, 운영 세션 API는 test 토큰을 403 ROUTE_SESSION_ATTESTATION_REJECTED로 거부)"
+  ],
+  "files": [
+    {
+      "path": "production-attempt.png",
+      "sha256": "47a6112045b954264baefbc764fd99a38e4ae9f45d697cea2c6efa5f5d78df22",
+      "description": "운영 API(https://easysubway-api.aquilaxk.site) 대상 debug 빌드: Play Integrity 서비스 바인딩 실패로 세션 발급 전 중단, \"경로를 찾지 못했어요\" 실패 화면"
+    },
+    {
+      "path": "before-main.png",
+      "sha256": "e8be5b8817d6e818c90107496522df0d2cdb53964b4ef0e5665c47a45817a760",
+      "description": "수정 전(origin/main 19c90e52): backend main 응답 형태 fixture를 실제 JourneyApiRepository로 해석하다 FormatException(unexpected JSON keys)로 경로 검색 실패"
+    },
+    {
+      "path": "after-main.png",
+      "sha256": "1a8e5855ae9cc4f2caa345b1ad01212a7c894ab957082d714412e61316a4535c",
+      "description": "수정 후: 같은 fixture로 경로 후보 2개(최단시간·무단차, 최소환승) 표시"
+    },
+    {
+      "path": "after-pr471.png",
+      "sha256": "d98519e4bce32eea24e9788eba9b81c8d5622554dd3c71c2e30bc117c1193a49",
+      "description": "수정 후: backend #471 형태(stairFreeAlternative·alternativeCategories) fixture로 서버 대표 묶음 라벨(최단시간·계단회피, 최소환승) 표시"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "93e733e2eb5f7bcd80645d6f445037477d49231639cf912722fdca36bd9c7234",
+      "description": "uiautomator dump 접근성 라벨과 harness가 남긴 저장소 결과 로그"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 JourneySearchScreen에 실제 JourneyApiRepository를 넣고, 전송 계층(ApiClient.postJson)만 fixture 응답(test/fixtures/contracts/api/journey_v3/*.json, 요청의 requestId·정책만 복사)으로 바꿔 flutter test -d emulator-5554로 실행했다. 수정 전 화면은 origin/main detached worktree에서 같은 harness로 찍었다. 운영 시도는 같은 harness에서 실제 ApiClient(운영 URL)와 실제 Play Integrity attestor를 썼다. 화면은 adb exec-out screencap, 라벨은 adb shell uiautomator dump로 수집했다. lib/ 테스트 전용 hook 없음. fixture의 노선·역 이름은 화면 확인용이며 실제 경로가 아니다.",
+  "notes": "실제 계정·자격 증명은 입력하지 않았다. 연결된 실기기는 잠금 화면이라 잠금 해제 없이 사용할 수 없어 쓰지 않았다. TalkBack 실기 낭독은 하지 않았고 접근성 트리로 대체했다."
+}
